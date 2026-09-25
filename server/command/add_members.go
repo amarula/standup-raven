@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/mattermost/mattermost-server/v5/model"
+	"github.com/mattermost/mattermost/server/public/model"
 	"github.com/thoas/go-funk"
 
 	"github.com/standup-raven/standup-raven/server/config"
@@ -18,7 +18,7 @@ func commandAddMembers() *Config {
 	return &Config{
 		AutocompleteData: &model.AutocompleteData{
 			Trigger: "addmembers",
-			RoleID:  model.SYSTEM_USER_ROLE_ID,
+			RoleID:  model.SystemUserRoleId,
 			Hint:    "[username 1] [username 2] [username 3]...",
 			HelpText: "Adds specified members to the the current channel's standup. " +
 				"Members are also automatically added to the current channel if not already part of it.",
@@ -46,7 +46,7 @@ func validateAddMembers(args []string, context Context) (*model.CommandResponse,
 		return nil, appErr
 	}
 
-	if funk.Contains(userRoles, model.SYSTEM_GUEST_ROLE_ID) {
+	if funk.Contains(userRoles, model.SystemGuestRoleId) {
 		return util.SendEphemeralText("Guest users are not allowed to perform this operation.")
 	}
 
@@ -56,12 +56,12 @@ func validateAddMembers(args []string, context Context) (*model.CommandResponse,
 	}
 
 	// removing @ from usernames if they were specified using mentions.
-	userIds := make(map[string]string, len(args))
+	userIDs := make(map[string]string, len(args))
 	for _, username := range args {
 		username = strings.TrimLeft(username, "@")
 
 		// preventing duplicates
-		if _, ok := userIds[username]; ok {
+		if _, ok := userIDs[username]; ok {
 			continue
 		}
 
@@ -69,19 +69,19 @@ func validateAddMembers(args []string, context Context) (*model.CommandResponse,
 		if err != nil {
 			return util.SendEphemeralText("Couldn't find user with username: " + username)
 		}
-		userIds[username] = user.Id
+		userIDs[username] = user.Id
 	}
 
 	// saving formatted usernames to context for later use
-	context.Props["userIds"] = funk.Values(userIds).([]string)
+	context.Props["userIds"] = funk.Values(userIDs).([]string)
 	return nil, nil
 }
 
 func executeAddMembers(args []string, context Context) (*model.CommandResponse, *model.AppError) {
-	userIds := context.Props["userIds"].([]string)
+	userIDs := context.Props["userIds"].([]string)
 
 	// inviting members to standup channel
-	addedUsers, notAddedUsers := addChannelMembers(userIds, context.CommandArgs.ChannelId)
+	addedUsers, notAddedUsers := addChannelMembers(userIDs, context.CommandArgs.ChannelId)
 
 	// adding successfully invited members to channel's standup config
 	if err := addStandupMembers(addedUsers, context.CommandArgs.ChannelId); err != nil {
@@ -94,15 +94,15 @@ func executeAddMembers(args []string, context Context) (*model.CommandResponse, 
 	}
 
 	return &model.CommandResponse{
-		Type: model.COMMAND_RESPONSE_TYPE_EPHEMERAL,
+		Type: model.CommandResponseTypeEphemeral,
 		Text: text,
 	}, nil
 }
 
-func addChannelMembers(userIds []string, channelID string) ([]string, []string) {
+func addChannelMembers(userIDs []string, channelID string) ([]string, []string) {
 	var addedUsers, notAddedUsers []string
 
-	for _, userID := range userIds {
+	for _, userID := range userIDs {
 		if _, appErr := config.Mattermost.AddChannelMember(channelID, userID); appErr != nil {
 			logger.Error(fmt.Sprintf("Error adding user [%s] to channel [%s]", userID, channelID), appErr, nil)
 			notAddedUsers = append(notAddedUsers, userID)

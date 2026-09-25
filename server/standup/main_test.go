@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"bou.ke/monkey"
-	"github.com/mattermost/mattermost-server/v5/model"
-	"github.com/mattermost/mattermost-server/v5/plugin/plugintest"
-	"github.com/mattermost/mattermost-server/v5/plugin/plugintest/mock"
+	"github.com/mattermost/mattermost/server/public/model"
+	"github.com/mattermost/mattermost/server/public/plugin/plugintest"
+	"github.com/mattermost/mattermost/server/public/plugin/plugintest/mock"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/teambition/rrule-go"

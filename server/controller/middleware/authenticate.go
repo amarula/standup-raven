@@ -6,7 +6,7 @@ import (
 
 	"github.com/standup-raven/standup-raven/server/util"
 
-	"github.com/mattermost/mattermost-server/v5/model"
+	"github.com/mattermost/mattermost/server/public/model"
 
 	"github.com/standup-raven/standup-raven/server/config"
 )
@@ -62,8 +62,8 @@ func SetUserRoles(w http.ResponseWriter, r *http.Request) (*http.Request, *model
 		userRolesMap[role] = true
 	}
 
-	userRoleTypes[RoleTypeEffectiveChannelAdmin] = userRolesMap[model.SYSTEM_ADMIN_ROLE_ID] || userRolesMap[model.TEAM_ADMIN_ROLE_ID] || userRolesMap[model.CHANNEL_ADMIN_ROLE_ID]
-	userRoleTypes[RoleTypeGuest] = userRolesMap[model.SYSTEM_GUEST_ROLE_ID]
+	userRoleTypes[RoleTypeEffectiveChannelAdmin] = userRolesMap[model.SystemAdminRoleId] || userRolesMap[model.TeamAdminRoleId] || userRolesMap[model.ChannelAdminRoleId]
+	userRoleTypes[RoleTypeGuest] = userRolesMap[model.SystemGuestRoleId]
 
 	ctxWithUserRoles := context.WithValue(r.Context(), CtxKeyUserRoles, userRoleTypes)
 	rWithUserRoles := r.WithContext(ctxWithUserRoles)

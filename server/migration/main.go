@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/mattermost/mattermost-plugin-api/cluster"
+	"github.com/mattermost/mattermost/server/public/pluginapi/cluster"
 	"github.com/thoas/go-funk"
 
 	"github.com/standup-raven/standup-raven/server/config"

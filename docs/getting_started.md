@@ -18,7 +18,7 @@ Set up your development environment for building, running, and testing the Stand
 
 #### Go
 
-Requires go version 1.18
+Requires go version 1.26.7 or later (see the `go` directive in `go.mod`)
 
     https://golang.org/doc/install
     
@@ -62,11 +62,9 @@ This will produce three artifacts in `/dist` directory -
 | MacOS   | `mattermost-plugin-standup-raven-vx.y.z-darwin-amd64.tar.gz` |
 | Windows | `mattermost-plugin-standup-raven-vx.y.z-windows-amd64.tar.gz`|
 
-This will also install, Glide - the Go package manager.
-
 ## 💯 Running Tests
 
-Following command will run all server and webapp tests -
+Following command will run the server tests -
 
     $ make test
     

@@ -23,6 +23,31 @@ var nilTime = (time.Time{}).UnixNano()
 // when adding per-channel timezone setting
 var DefaultLocation *time.Location
 
+// OnInvalidTimezone, when set, is called with a timezone name that could not be
+// resolved. The plugin assigns it at activation; otime cannot call the logger
+// directly because logger imports config, which imports otime.
+var OnInvalidTimezone func(timezone string, err error)
+
+// resolveLocation looks a timezone name up, falling back to DefaultLocation and
+// then UTC. It never returns nil: time.In(nil) panics, which would take down the
+// whole plugin process from inside the scheduler.
+func resolveLocation(timezone string) *time.Location {
+	location, err := time.LoadLocation(timezone)
+	if err == nil {
+		return location
+	}
+
+	if OnInvalidTimezone != nil {
+		OnInvalidTimezone(timezone, err)
+	}
+
+	if DefaultLocation != nil {
+		return DefaultLocation
+	}
+
+	return time.UTC
+}
+
 func Parse(value string) (OTime, error) {
 	argTime, err := time.Parse(layoutTime, value)
 	if err != nil {
@@ -36,37 +61,33 @@ func Parse(value string) (OTime, error) {
 
 func Now(timezone string) OTime {
 	now := time.Now()
-	location, _ := time.LoadLocation(timezone)
-	return OTime{now.In(location)}
+	return OTime{now.In(resolveLocation(timezone))}
 }
 
 // GetTime returns time with format like "15:04"
 func (ct OTime) GetTime(timezone string) OTime {
 	now, _ := time.Parse(layoutTime, ct.Format(layoutTime))
-	location, _ := time.LoadLocation(timezone)
-	return OTime{now.In(location)}
+	return OTime{now.In(resolveLocation(timezone))}
 }
 
 // GetTimeWithSeconds returns time with format like "15:04:05"
 func (ct OTime) GetTimeWithSeconds(timezone string) OTime {
 	now, _ := time.Parse(layoutTimeWithSeconds, ct.Format(layoutTimeWithSeconds))
-	location, _ := time.LoadLocation(timezone)
-	return OTime{now.In(location)}
+	return OTime{now.In(resolveLocation(timezone))}
 }
 
 func (ct OTime) GetTimeString() string {
-	return ct.Time.Format(layoutTime)
+	return ct.Format(layoutTime)
 }
 
 // GetDate returns date with format like "20060102"
 func (ct OTime) GetDate(timezone string) OTime {
 	now, _ := time.Parse(layoutDate, ct.Format(layoutDate))
-	location, _ := time.LoadLocation(timezone)
-	return OTime{now.In(location)}
+	return OTime{now.In(resolveLocation(timezone))}
 }
 
 func (ct OTime) GetDateString() string {
-	return ct.Time.Format(layoutDate)
+	return ct.Format(layoutDate)
 }
 
 func (ct *OTime) UnmarshalJSON(b []byte) (err error) {
@@ -85,8 +106,8 @@ func (ct *OTime) UnmarshalJSON(b []byte) (err error) {
 }
 
 func (ct OTime) MarshalJSON() ([]byte, error) {
-	if ct.Time.UnixNano() == nilTime {
+	if ct.UnixNano() == nilTime {
 		return []byte("null"), nil
 	}
-	return []byte(fmt.Sprintf("\"%s\"", ct.Time.Format(layoutTime))), nil
+	return []byte(fmt.Sprintf("\"%s\"", ct.Format(layoutTime))), nil
 }

@@ -5,7 +5,7 @@ import (
 
 	"github.com/thoas/go-funk"
 
-	"github.com/mattermost/mattermost-server/v5/model"
+	"github.com/mattermost/mattermost/server/public/model"
 	"github.com/pkg/errors"
 
 	"github.com/standup-raven/standup-raven/server/config"
@@ -20,7 +20,7 @@ func commandRemoveMembers() *Config {
 			Hint:    "[username 1] [username 2] [username 3]...",
 			HelpText: "Removes specified members from the channel's standup. " +
 				"Members are NOT removed from the channel automatically.",
-			RoleID: model.SYSTEM_USER_ROLE_ID,
+			RoleID: model.SystemUserRoleId,
 			Arguments: []*model.AutocompleteArg{
 				{
 					Type:     model.AutocompleteArgTypeText,
@@ -46,7 +46,7 @@ func validateRemoveMembers(args []string, context Context) (*model.CommandRespon
 		return nil, appErr
 	}
 
-	if funk.Contains(userRoles, model.SYSTEM_GUEST_ROLE_ID) {
+	if funk.Contains(userRoles, model.SystemGuestRoleId) {
 		return util.SendEphemeralText("Guest users are not allowed to perform this operation.")
 	}
 
@@ -113,7 +113,7 @@ func executeRemoveMembers(args []string, context Context) (*model.CommandRespons
 	}
 
 	return &model.CommandResponse{
-		Type: model.COMMAND_RESPONSE_TYPE_EPHEMERAL,
+		Type: model.CommandResponseTypeEphemeral,
 		Text: text,
 	}, nil
 }

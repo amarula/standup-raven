@@ -2,21 +2,24 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+
+	// Embed the timezone database so the plugin does not depend on the host
+	// shipping /usr/share/zoneinfo.
+	_ "time/tzdata"
 
 	"github.com/getsentry/sentry-go"
-	"github.com/mattermost/mattermost-plugin-api/cluster"
+	"github.com/mattermost/mattermost/server/public/model"
+	"github.com/mattermost/mattermost/server/public/plugin"
+	"github.com/mattermost/mattermost/server/public/pluginapi/cluster"
 
 	"github.com/standup-raven/standup-raven/server/logger"
 	"github.com/standup-raven/standup-raven/server/migration"
+	"github.com/standup-raven/standup-raven/server/otime"
 	"github.com/standup-raven/standup-raven/server/standup/notification"
-
-	"os"
-	"path/filepath"
-
-	"github.com/mattermost/mattermost-server/v5/model"
-	"github.com/mattermost/mattermost-server/v5/plugin"
 
 	"github.com/standup-raven/standup-raven/server/command"
 	"github.com/standup-raven/standup-raven/server/config"
@@ -39,6 +42,9 @@ type Plugin struct {
 
 func (p *Plugin) OnActivate() error {
 	config.Mattermost = p.API
+	otime.OnInvalidTimezone = func(timezone string, err error) {
+		logger.Error("Couldn't load timezone "+timezone, err, nil)
+	}
 
 	if err := p.OnConfigurationChange(); err != nil {
 		return err
@@ -64,7 +70,7 @@ func (p *Plugin) OnActivate() error {
 }
 
 func (p *Plugin) setUpBot() (string, error) {
-	botID, err := p.Helpers.EnsureBot(&model.Bot{
+	botID, err := p.API.EnsureBotUser(&model.Bot{
 		Username:    config.BotUsername,
 		DisplayName: config.BotDisplayName,
 		Description: "Bot for Standup Raven.",
@@ -78,7 +84,9 @@ func (p *Plugin) setUpBot() (string, error) {
 		return "", err
 	}
 
-	profileImage, err := ioutil.ReadFile(filepath.Join(bundlePath, "webapp/static/logo.png"))
+	// The path is the server-provided bundle path plus a constant filename, so
+	// there is no attacker-controlled input here.
+	profileImage, err := os.ReadFile(filepath.Join(bundlePath, "webapp/static/logo.png")) //nolint:gosec // path is not user controlled
 	if err != nil {
 		return "", err
 	}
@@ -132,8 +140,10 @@ func (p *Plugin) OnConfigurationChange() error {
 }
 
 func (p *Plugin) setInjectedVars(configuration *config.Configuration) {
-	// substring to remove "v" from "vX.Y.Z"
-	configuration.PluginVersion = PluginVersion[1:]
+	// PluginVersion is injected at build time as "vX.Y.Z". It is empty in builds
+	// that skip the release ldflags, so strip the prefix only when it is there
+	// instead of panicking on an out of range slice.
+	configuration.PluginVersion = strings.TrimPrefix(PluginVersion, "v")
 	configuration.SentryWebappDSN = SentryWebappDSN
 	configuration.SentryServerDSN = SentryServerDSN
 }
@@ -159,7 +169,7 @@ func (p *Plugin) ExecuteCommand(c *plugin.Context, args *model.CommandArgs) (*mo
 	split, argErr := util.SplitArgs(args.Command)
 	if argErr != nil {
 		return &model.CommandResponse{
-			Type: model.COMMAND_RESPONSE_TYPE_EPHEMERAL,
+			Type: model.CommandResponseTypeEphemeral,
 			Text: argErr.Error(),
 		}, nil
 	}
@@ -220,6 +230,22 @@ func (p *Plugin) ServeHTTP(c *plugin.Context, w http.ResponseWriter, r *http.Req
 	}
 }
 
+// runScheduledReport runs one notification/report cycle. A panic here used to
+// kill the plugin process, leaving the server proxying requests to a dead
+// plugin, so it is contained to a single cycle instead.
+func (p *Plugin) runScheduledReport() {
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("recovered from panic in standup scheduler: %v", r)
+			logger.Error(err.Error(), err, nil)
+		}
+	}()
+
+	if err := notification.SendNotificationsAndReports(); err != nil {
+		logger.Error("Failed to send notification/report. Error: "+err.Error(), err, nil)
+	}
+}
+
 func (p *Plugin) Run() error {
 	if p.job != nil {
 		if err := p.job.Close(); err != nil {
@@ -231,11 +257,7 @@ func (p *Plugin) Run() error {
 		config.Mattermost,
 		"StandupRavenReportScheduler",
 		cluster.MakeWaitForInterval(config.RunnerInterval),
-		func() {
-			if err := notification.SendNotificationsAndReports(); err != nil {
-				logger.Error("Failed to send notification/report. Error: "+err.Error(), err, nil)
-			}
-		},
+		p.runScheduledReport,
 	)
 
 	if err != nil {

@@ -2,12 +2,11 @@ package config
 
 import (
 	"encoding/json"
-	"errors"
 	"strings"
+	"sync/atomic"
 	"time"
 
-	"github.com/mattermost/mattermost-server/v5/plugin"
-	"go.uber.org/atomic"
+	"github.com/mattermost/mattermost/server/public/plugin"
 
 	"github.com/standup-raven/standup-raven/server/otime"
 )
@@ -48,7 +47,7 @@ const (
 )
 
 var (
-	config        atomic.Value
+	config        atomic.Pointer[Configuration]
 	Mattermost    plugin.API
 	ReportFormats = []string{ReportFormatUserAggregated, ReportFormatTypeAggregated}
 )
@@ -67,7 +66,7 @@ type Configuration struct {
 }
 
 func GetConfig() *Configuration {
-	return config.Load().(*Configuration)
+	return config.Load()
 }
 
 func SetConfig(c *Configuration) {
@@ -82,17 +81,14 @@ func (c *Configuration) ProcessConfiguration() error {
 	}
 
 	c.SentryServerDSN = strings.TrimSpace(c.SentryServerDSN)
-
-	if c.EnableErrorReporting && len(c.SentryServerDSN) == 0 {
-		Mattermost.LogError("Sentry Server DSN cannot be empty if error reporting is enabled")
-		return errors.New("sentry server DSN cannot be empty if error reporting is enabled")
-	}
-
 	c.SentryWebappDSN = strings.TrimSpace(c.SentryWebappDSN)
 
-	if c.EnableErrorReporting && len(c.SentryWebappDSN) == 0 {
-		Mattermost.LogError("Sentry Webapp DSN cannot be empty if error reporting is enabled")
-		return errors.New("sentry webapp DSN cannot be empty if error reporting is enabled")
+	// Error reporting is opt-in. Builds without a Sentry DSN baked in at build
+	// time previously failed activation outright, because the settings schema
+	// defaults enableErrorReporting to true.
+	if c.EnableErrorReporting && (len(c.SentryServerDSN) == 0 || len(c.SentryWebappDSN) == 0) {
+		Mattermost.LogWarn("Error reporting is enabled but no Sentry DSN is configured, disabling error reporting")
+		c.EnableErrorReporting = false
 	}
 
 	c.Location = location

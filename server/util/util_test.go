@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"bou.ke/monkey"
-	"github.com/mattermost/mattermost-server/v5/model"
+	"github.com/mattermost/mattermost/server/public/model"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/standup-raven/standup-raven/server/otime"
@@ -60,7 +60,7 @@ func TestSendEphemeralText(t *testing.T) {
 	response, err := SendEphemeralText("my message")
 
 	assert.Nil(t, err)
-	assert.Equal(t, model.COMMAND_RESPONSE_TYPE_EPHEMERAL, response.Type)
+	assert.Equal(t, model.CommandResponseTypeEphemeral, response.Type)
 	assert.Equal(t, "my message", response.Text)
 }
 

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mattermost/mattermost-server/v5/model"
+	"github.com/mattermost/mattermost/server/public/model"
 	"github.com/pkg/errors"
 
 	"github.com/standup-raven/standup-raven/server/config"
@@ -327,16 +327,14 @@ func filterChannelNotification(channelIDs map[string]string) ([]string, []string
 		if status := shouldSendStandupReport(notificationStatus, standupConfig); status == ChannelNotificationStatusSend {
 			logger.Debug(fmt.Sprintf("Channel [%s] needs standup report", channelID), nil)
 			standupReportChannels = append(standupReportChannels, channelID)
-		} else if status == ChannelNotificationStatusSent {
-			// pass
-		} else if shouldSendWindowCloseNotification(notificationStatus, standupConfig) == ChannelNotificationStatusSend {
+		} else if status != ChannelNotificationStatusSent &&
+			shouldSendWindowCloseNotification(notificationStatus, standupConfig) == ChannelNotificationStatusSend {
 			if standupConfig.WindowCloseReminderEnabled {
 				logger.Debug(fmt.Sprintf("Channel [%s] needs window close notification", channelID), nil)
 				windowCloseNotificationChannels = append(windowCloseNotificationChannels, channelID)
 			}
-		} else if status == ChannelNotificationStatusSent {
-			// pass
-		} else if shouldSendWindowOpenNotification(notificationStatus, standupConfig) == ChannelNotificationStatusSend {
+		} else if status != ChannelNotificationStatusSent &&
+			shouldSendWindowOpenNotification(notificationStatus, standupConfig) == ChannelNotificationStatusSend {
 			if standupConfig.WindowOpenReminderEnabled {
 				logger.Debug(fmt.Sprintf("Channel [%s] needs window open notification", channelID), nil)
 				windowOpenNotificationChannels = append(windowOpenNotificationChannels, channelID)
@@ -377,7 +375,7 @@ func shouldSendWindowCloseNotification(notificationStatus *ChannelNotificationSt
 		return ChannelNotificationStatusSent
 	}
 
-	windowDuration := standupConfig.WindowCloseTime.GetTime(standupConfig.Timezone).Time.Sub(standupConfig.WindowOpenTime.GetTime(standupConfig.Timezone).Time)
+	windowDuration := standupConfig.WindowCloseTime.GetTime(standupConfig.Timezone).Sub(standupConfig.WindowOpenTime.GetTime(standupConfig.Timezone).Time)
 	targetDurationSeconds := windowDuration.Seconds() * config.WindowCloseNotificationDurationPercentage
 	targetDuration, _ := time.ParseDuration(fmt.Sprintf("%fs", targetDurationSeconds))
 
@@ -407,7 +405,7 @@ func sendWindowOpenNotification(channelIDs []string) {
 		post := &model.Post{
 			ChannelId: channelID,
 			UserId:    config.GetConfig().BotUserID,
-			Type:      model.POST_DEFAULT,
+			Type:      model.PostTypeDefault,
 			Message:   "Please start filling your standup!",
 		}
 
@@ -480,7 +478,7 @@ func sendWindowCloseNotification(channelIDs []string) error {
 		post := &model.Post{
 			ChannelId: channelID,
 			UserId:    config.GetConfig().BotUserID,
-			Type:      model.POST_DEFAULT,
+			Type:      model.PostTypeDefault,
 			Message:   message,
 		}
 
@@ -631,7 +629,7 @@ func getUserDisplayName(userID string) (string, error) {
 	if appErr != nil {
 		return "", errors.New(appErr.Error())
 	}
-	return user.GetDisplayName(model.SHOW_FULLNAME), nil
+	return user.GetDisplayName(model.ShowFullName), nil
 }
 
 func addReminderPost(postID string, channelID string) error {

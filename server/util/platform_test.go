@@ -3,8 +3,8 @@ package util
 import (
 	"testing"
 
-	"github.com/mattermost/mattermost-server/v5/model"
-	"github.com/mattermost/mattermost-server/v5/plugin/plugintest"
+	"github.com/mattermost/mattermost/server/public/model"
+	"github.com/mattermost/mattermost/server/public/plugin/plugintest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/thoas/go-funk"
@@ -24,18 +24,18 @@ func TestGetUserRoles(t *testing.T) {
 
 	mockAPI.On("GetChannelMember", "channel_id_1", "user_id_1").Return(
 		&model.ChannelMember{
-			Roles: model.CHANNEL_ADMIN_ROLE_ID,
+			Roles: model.ChannelAdminRoleId,
 		},
 		nil,
 	)
 
 	mockAPI.On("GetTeamMember", "team_id_1", "user_id_1").Return(
-		&model.TeamMember{Roles: model.TEAM_ADMIN_ROLE_ID},
+		&model.TeamMember{Roles: model.TeamAdminRoleId},
 		nil,
 	)
 
 	mockAPI.On("GetUser", "user_id_1").Return(
-		&model.User{Roles: model.SYSTEM_ADMIN_ROLE_ID},
+		&model.User{Roles: model.SystemAdminRoleId},
 		nil,
 	)
 
@@ -48,9 +48,9 @@ func TestGetUserRoles(t *testing.T) {
 
 	roles, appErr := GetUserRoles("user_id_1", "channel_id_1")
 	assert.Nil(t, appErr)
-	assert.True(t, funk.Contains(roles, model.TEAM_ADMIN_ROLE_ID))
-	assert.True(t, funk.Contains(roles, model.SYSTEM_ADMIN_ROLE_ID))
-	assert.True(t, funk.Contains(roles, model.CHANNEL_ADMIN_ROLE_ID))
+	assert.True(t, funk.Contains(roles, model.TeamAdminRoleId))
+	assert.True(t, funk.Contains(roles, model.SystemAdminRoleId))
+	assert.True(t, funk.Contains(roles, model.ChannelAdminRoleId))
 }
 
 func TestGetUserRoles_GetChannelMembers_Error(t *testing.T) {
@@ -73,7 +73,7 @@ func TestGetUserRoles_GetTeamMembers_Error(t *testing.T) {
 
 	mockAPI.On("GetChannelMember", "channel_id_1", "user_id_1").Return(
 		&model.ChannelMember{
-			Roles: model.CHANNEL_ADMIN_ROLE_ID,
+			Roles: model.ChannelAdminRoleId,
 		},
 		nil,
 	)
@@ -100,13 +100,13 @@ func TestGetUserRoles_GetUser_Error(t *testing.T) {
 
 	mockAPI.On("GetChannelMember", "channel_id_1", "user_id_1").Return(
 		&model.ChannelMember{
-			Roles: model.CHANNEL_ADMIN_ROLE_ID,
+			Roles: model.ChannelAdminRoleId,
 		},
 		nil,
 	)
 
 	mockAPI.On("GetTeamMember", "team_id_1", "user_id_1").Return(
-		&model.TeamMember{Roles: model.TEAM_ADMIN_ROLE_ID},
+		&model.TeamMember{Roles: model.TeamAdminRoleId},
 		nil,
 	)
 
@@ -132,18 +132,18 @@ func TestGetUserRoles_GetChannel_Error(t *testing.T) {
 
 	mockAPI.On("GetChannelMember", "channel_id_1", "user_id_1").Return(
 		&model.ChannelMember{
-			Roles: model.CHANNEL_ADMIN_ROLE_ID,
+			Roles: model.ChannelAdminRoleId,
 		},
 		nil,
 	)
 
 	mockAPI.On("GetTeamMember", "team_id_1", "user_id_1").Return(
-		&model.TeamMember{Roles: model.TEAM_ADMIN_ROLE_ID},
+		&model.TeamMember{Roles: model.TeamAdminRoleId},
 		nil,
 	)
 
 	mockAPI.On("GetUser", "user_id_1").Return(
-		&model.User{Roles: model.SYSTEM_ADMIN_ROLE_ID},
+		&model.User{Roles: model.SystemAdminRoleId},
 		nil,
 	)
 

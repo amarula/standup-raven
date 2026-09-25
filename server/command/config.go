@@ -1,7 +1,7 @@
 package command
 
 import (
-	"github.com/mattermost/mattermost-server/v5/model"
+	"github.com/mattermost/mattermost/server/public/model"
 
 	"github.com/standup-raven/standup-raven/server/config"
 )
@@ -11,7 +11,7 @@ func commandConfig() *Config {
 		AutocompleteData: &model.AutocompleteData{
 			Trigger:  "config",
 			HelpText: "Open channel standup configuration dialog.",
-			RoleID:   model.SYSTEM_USER_ROLE_ID,
+			RoleID:   model.SystemUserRoleId,
 		},
 		ExtraHelpText: "",
 		Validate:      validateCommandConfig,
@@ -35,7 +35,7 @@ func executeCommandConfig(args []string, context Context) (*model.CommandRespons
 	)
 
 	return &model.CommandResponse{
-		ResponseType: model.COMMAND_RESPONSE_TYPE_EPHEMERAL,
+		ResponseType: model.CommandResponseTypeEphemeral,
 		Text:         "Configure your standup in the open modal!", // TODO: update this message to something more elegant
 	}, nil
 }

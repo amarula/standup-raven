@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mattermost/mattermost-server/v5/model"
+	"github.com/mattermost/mattermost/server/public/model"
 
 	"github.com/standup-raven/standup-raven/server/otime"
 	"github.com/standup-raven/standup-raven/server/standup"
@@ -22,7 +22,7 @@ func commandStandup() *Config {
 		AutocompleteData: &model.AutocompleteData{
 			Trigger:  "report",
 			HelpText: "Generate standup reports for provided dates",
-			RoleID:   model.SYSTEM_USER_ROLE_ID,
+			RoleID:   model.SystemUserRoleId,
 			Arguments: []*model.AutocompleteArg{
 				{
 					HelpText: "Report visibility",
@@ -104,7 +104,7 @@ func executeCommandStandup(args []string, context Context) (*model.CommandRespon
 	}
 
 	return &model.CommandResponse{
-		ResponseType: model.COMMAND_RESPONSE_TYPE_EPHEMERAL,
+		ResponseType: model.CommandResponseTypeEphemeral,
 		Text:         "Standup reports generated",
 	}, nil
 }

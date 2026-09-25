@@ -3,7 +3,7 @@ package command
 import (
 	"strings"
 
-	"github.com/mattermost/mattermost-server/v5/model"
+	"github.com/mattermost/mattermost/server/public/model"
 
 	"github.com/standup-raven/standup-raven/server/config"
 	"github.com/standup-raven/standup-raven/server/util"
@@ -17,7 +17,7 @@ func Master() *Config {
 			Trigger:     config.CommandPrefix,
 			SubCommands: getSumCommands(),
 			HelpText:    "Available commands: " + strings.Join(getAvailableCommands(), ", "),
-			RoleID:      model.SYSTEM_USER_ROLE_ID,
+			RoleID:      model.SystemUserRoleId,
 		},
 		ExtraHelpText: "",
 		Validate:      validateCommandMaster,
@@ -85,7 +85,7 @@ func executeCommandMaster(args []string, context Context) (*model.CommandRespons
 		)
 
 		response, appErr = &model.CommandResponse{
-			ResponseType: model.COMMAND_RESPONSE_TYPE_EPHEMERAL,
+			ResponseType: model.CommandResponseTypeEphemeral,
 			Text:         "Submit your standup from the open modal!",
 		}, nil
 	}

@@ -32,11 +32,19 @@ func Info(msg string, err error, keyValuePairs ...interface{}) {
 }
 
 func Error(msg string, err error, extraData map[string]interface{}) {
-	sentry.WithScope(func(scope *sentry.Scope) {
-		scope.SetExtra("message", msg)
-		scope.SetExtras(extraData)
-		sentry.CaptureException(err)
-	})
+	// Sentry dropped Scope.SetExtra/SetExtras in favor of contexts, and
+	// CaptureException is a no-op for a nil error, so only report real errors.
+	if err != nil {
+		sentry.WithScope(func(scope *sentry.Scope) {
+			details := sentry.Context{}
+			for key, value := range extraData {
+				details[key] = value
+			}
+			details["message"] = msg
+			scope.SetContext("standup-raven", details)
+			sentry.CaptureException(err)
+		})
+	}
 
 	if config.Mattermost != nil {
 		errMsg := msg

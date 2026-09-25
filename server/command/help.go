@@ -1,7 +1,7 @@
 package command
 
 import (
-	"github.com/mattermost/mattermost-server/v5/model"
+	"github.com/mattermost/mattermost/server/public/model"
 )
 
 func commandHelp() *Config {
@@ -9,7 +9,7 @@ func commandHelp() *Config {
 		AutocompleteData: &model.AutocompleteData{
 			Trigger:  "help",
 			HelpText: "Display Standup Raven help text.", // TODO prepare this help text
-			RoleID:   model.SYSTEM_USER_ROLE_ID,
+			RoleID:   model.SystemUserRoleId,
 		},
 		Validate: validateCommandHelp,
 		Execute:  executeCommandHelp,
@@ -30,7 +30,7 @@ func executeCommandHelp(args []string, context Context) (*model.CommandResponse,
 	})
 
 	return &model.CommandResponse{
-		ResponseType: model.COMMAND_RESPONSE_TYPE_EPHEMERAL,
+		ResponseType: model.CommandResponseTypeEphemeral,
 		Text:         helpText,
 	}, nil
 }
