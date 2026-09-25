@@ -35,8 +35,10 @@ commands:
 jobs:
   lint:
     docker:
-      - image: cimg/go:1.18.10
+      - image: cimg/base:stable
     steps:
+      - go/install:
+          version: '1.27.1'
       - node/install:
           node-version: '14.21.3'
       - checkout
@@ -44,13 +46,15 @@ jobs:
           name: "Run check-style"
           command: |
             npm install --global yarn
-            curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.53.2
+            curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.14.0
             make check-style
 
   test:
     docker:
-      - image: cimg/go:1.18.10
+      - image: cimg/base:stable
     steps:
+      - go/install:
+          version: '1.27.1'
       - node/install:
           node-version: '14.21.3'
       - checkout
@@ -65,13 +69,12 @@ jobs:
       - node/install:
           node-version: '14.21.3'
       - go/install:
-          version: '1.18'
+          version: '1.27.1'
       - checkout
       - run:
           name: "Build and bundle the plugin"
           command: |
             npm install --global yarn
-            go mod tidy
             make dist
       - save:
           filename: "*.tar.gz"

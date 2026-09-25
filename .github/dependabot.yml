@@ -1,0 +1,21 @@
+version: 2
+updates:
+  # Server dependencies. Kept ungrouped so that a Mattermost plugin API bump
+  # arrives as its own reviewable pull request.
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  # Webapp dependencies. These are grouped because the webapp build has no test
+  # suite, so each update is validated by hand; see docs/processes/index.md.
+  - package-ecosystem: npm
+    directory: /webapp
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    groups:
+      webapp:
+        patterns:
+          - "*"
