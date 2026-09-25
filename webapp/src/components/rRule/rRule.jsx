@@ -4,10 +4,10 @@ import {ControlLabel, FormGroup} from 'react-bootstrap';
 import DatePicker from 'react-16-bootstrap-date-picker';
 
 import RRuleGenerator from '../reactBootstrapRRuleGenerator';
-import rruleStyles from '../reactBootstrapRRuleGenerator/styles/index.css';
+import '../reactBootstrapRRuleGenerator/styles/index.css';
 import configModalStyles from '../configModal/style';
 
-import style from './style.css';
+import './style.css';
 import reactStyles from './style';
 
 class RRule extends React.PureComponent {
@@ -15,12 +15,6 @@ class RRule extends React.PureComponent {
         super(props);
         this.state = RRule.getInitialState();
         this.configModalReactStyles = configModalStyles.getStyle();
-
-        // eslint-disable-next-line no-unused-vars
-        const x = rruleStyles;
-
-        // eslint-disable-next-line no-unused-vars
-        const y = style;
     }
 
     static get frequencies() {

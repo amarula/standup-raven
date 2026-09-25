@@ -22,12 +22,10 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      # The webapp bundle is still built by webpack 4, which needs the Node
-      # version this plugin has always shipped with.
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
-          node-version: '14.21.3'
+          node-version: '24.21.0'
 
       - name: Install yarn
         run: npm install --global yarn

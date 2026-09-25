@@ -1,5 +1,3 @@
 import Config from './config';
 
-module.exports = {
-    Config,
-};
+export {Config};

@@ -24,9 +24,9 @@ Requires go version 1.26.7 or later (see the `go` directive in `go.mod`)
     
 #### NodeJS
 
-Recommended NodeJS version 14.8.0
+Requires NodeJS 22 or later, built and tested against NodeJS 24
 
-    https://nodejs.org/download/release/v14.8.0/
+    https://nodejs.org/en/download
 
 #### Make
 

@@ -64,9 +64,7 @@ function initSentry(dsn) {
         dsn,
     });
 
-    Sentry.configureScope(((scope) => {
-        scope.setTag('pluginComponent', 'webapp');
-    }));
+    Sentry.getCurrentScope().setTag('pluginComponent', 'webapp');
 }
 
 window.registerPlugin(Constants.PLUGIN_NAME, new StandupRavenPlugin());

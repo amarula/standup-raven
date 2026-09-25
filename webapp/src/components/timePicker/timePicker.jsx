@@ -1,18 +1,13 @@
 import * as React from 'react';
 import PropTypes from 'prop-types';
 import {MenuItem, SplitButton} from 'react-bootstrap';
-import style from './style.css';
+import './style.css';
 import SentryBoundary from '../../SentryBoundary';
 
 class TimePicker extends (SentryBoundary, React.PureComponent) {
     constructor(props) {
         super(props);
         this.state = TimePicker.getInitialState();
-
-        // the sole purpose of this line is to prevent code formatters from marking the import as an unused one
-        // TODO: see if we can configure this as a side effect instead of using it.
-        // eslint-disable-next-line no-unused-vars
-        const x = style;
 
         this.onChange = this.onChange.bind(this);
     }

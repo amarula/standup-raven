@@ -8,9 +8,16 @@
             "impliedStrict": true,
             "modules": true,
             "experimentalObjectRestSpread": true
+        },
+        "requireConfigFile": false,
+        "babelOptions": {
+            "presets": [
+                "@babel/preset-env",
+                "@babel/preset-react"
+            ]
         }
     },
-    "parser": "babel-eslint",
+    "parser": "@babel/eslint-parser",
     "plugins": [
         "react"
     ],

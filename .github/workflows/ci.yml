@@ -48,12 +48,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      # The webapp is still built by webpack 4, which needs the Node version
-      # this plugin has always shipped with.
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
-          node-version: '14.21.3'
+          node-version: '24.21.0'
           cache: yarn
           cache-dependency-path: webapp/yarn.lock
 
@@ -62,6 +60,9 @@ jobs:
 
       - name: Lint
         run: make check-style-webapp
+
+      - name: Build bundle
+        run: make buildwebapp
 
   lint:
     name: Lint server

@@ -15,7 +15,7 @@ async function getPluginConfig(siteURL) {
     return response.body;
 }
 
-module.exports = {
+export default {
     getActiveChannels,
     getPluginConfig,
 };

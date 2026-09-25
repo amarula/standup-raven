@@ -26,7 +26,7 @@ import ToggleSwitch from '../toggleSwitch';
 import RRule from '../rRule';
 import TimePicker from '../timePicker';
 
-import style from './style.css';
+import './style.css';
 import reactStyles from './style';
 
 const configModalCloseTimeout = 1000;
@@ -45,9 +45,6 @@ class ConfigModal extends (SentryBoundary, React.Component) {
     constructor(props) {
         super(props);
         this.state = this.getInitialState();
-
-        // eslint-disable-next-line no-unused-vars
-        const x = style;
     }
 
     static get REPORT_DISPLAY_NAMES() {

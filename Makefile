@@ -108,7 +108,7 @@ buildwebapp: .webinstall
 	mkdir -p $(BUNDLE_DIR)/webapp
 	cp -r webapp/dist/* $(BUNDLE_DIR)/webapp/
 
-package:
+package: buildserver buildwebapp
 	@for platform in $(PLATFORMS); do \
 		executable=$$(node -p "require('./$(MANIFEST_FILE)').server.executables['$$platform']") || exit 1; \
 		rm -rf $(BUNDLE_DIR)/server; \

@@ -83,13 +83,15 @@ If this seems like a lot or you aren't able to do all this setup, you might also
 
 If you want to go the usual route and run the project locally, though:
 
-* [Install Node.js](https://nodejs.org/en/download/)
+* [Install Go](https://go.dev/doc/install) (1.26.7 or later, see the `go` directive in `go.mod`) and [Node.js](https://nodejs.org/en/download/) (22 or later) with [yarn](https://classic.yarnpkg.com/en/docs/install)
 * [Fork the project](https://guides.github.com/activities/forking/#fork)
 
 Then in your terminal:
 * `cd path/to/your/clone`
-* `npm install`
-* `npm test`
+* `make vendor` to fetch the server dependencies
+* `make .webinstall` to fetch the webapp dependencies
+* `make test` to run the server tests
+* `make check-style` to run both linters
 
 And you should be ready to go!
 
