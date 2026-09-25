@@ -54,13 +54,21 @@ For other platforms, refer to the [official installation guide](https://github.c
 
 Once you have fetched the repo, simply run `$ make dist` from the repo.
 
-This will produce three artifacts in `/dist` directory -
+This will produce one artifact per platform in the `/dist` directory. The
+platforms come from the `server.executables` map in `plugin.json`, so add an
+entry there to build for another one.
 
-| Flavor  | Distribution |
-|-------- | ------------ |
-| Linux   | `mattermost-plugin-standup-raven-vx.y.z-linux-amd64.tar.gz`  |
-| MacOS   | `mattermost-plugin-standup-raven-vx.y.z-darwin-amd64.tar.gz` |
-| Windows | `mattermost-plugin-standup-raven-vx.y.z-windows-amd64.tar.gz`|
+| Flavor              | Distribution |
+| ------------------- | ------------ |
+| Linux (x86-64)      | `mattermost-plugin-standup-raven-vx.y.z-linux-amd64.tar.gz`  |
+| Linux (arm64)       | `mattermost-plugin-standup-raven-vx.y.z-linux-arm64.tar.gz`  |
+| MacOS (Intel)       | `mattermost-plugin-standup-raven-vx.y.z-darwin-amd64.tar.gz` |
+| MacOS (Apple silicon) | `mattermost-plugin-standup-raven-vx.y.z-darwin-arm64.tar.gz` |
+| Windows (x86-64)    | `mattermost-plugin-standup-raven-vx.y.z-windows-amd64.tar.gz`|
+
+Tagged releases are built and published by the `Release` workflow in
+`.github/workflows/release.yml`, so pushing a `vx.y.z` tag is all a release
+needs.
 
 ## 💯 Running Tests
 

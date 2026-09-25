@@ -1,253 +1,127 @@
-GOOS=$(shell uname -s | tr '[:upper:]' '[:lower:]')
-GOARCH=amd64
-GOFLAGS ?= $(GOFLAGS:)
+# The recipes use bash constructs and the build loops rely on parameter
+# expansion, so do not let them run under dash.
+SHELL := /bin/bash
+
+GO            ?= go
 MANIFEST_FILE ?= plugin.json
+TIMEZONES_FILE ?= timezones.json
+ICON_FILE     ?= webapp/src/assets/images/logo.svg
 
-define GetPluginId
-$(shell node -p "require('./plugin.json').id")
-endef
+# The plugin id, the version and the platform -> executable mapping all come
+# from the manifest, so it stays the single source of truth for them.
+PLUGINNAME    = $(shell node -p "require('./$(MANIFEST_FILE)').id")
+PLUGINVERSION = v$(shell node -p "require('./$(MANIFEST_FILE)').version")
+PACKAGENAME   = mattermost-plugin-$(PLUGINNAME)-$(PLUGINVERSION)
+PLATFORMS     = $(shell node -p "Object.keys(require('./$(MANIFEST_FILE)').server.executables).join(' ')")
 
-define GetPluginVersion
-$(shell node -p "'v' + require('./plugin.json').version")
-endef
+# Platform that `make deploy` uploads to a development server.
+PLATFORM ?= linux
+ARCH     ?= amd64
 
-define AddTimeZoneOptions
-$(shell node -e 
-"
-let fs = require('fs');
-try {
-	let manifest = fs.readFileSync('plugin.json', 'utf8'); 
-	manifest = JSON.parse(manifest);
-	let timezones = fs.readFileSync('timezones.json', 'utf8'); 
-	timezones = JSON.parse(timezones); 
-	manifest.settings_schema.settings[0].options=timezones; 
-	let json = JSON.stringify(manifest, null, 2);
-	fs.writeFileSync('plugin.json', json, 'utf8'); 
-} catch (err) {
-	console.log(err);
-};"
-)
-endef
+BUILD_DIR  = dist/intermediate
+BUNDLE_DIR = dist/$(PLUGINNAME)
 
-define RemoveTimeZoneOptions
-$(shell node -e 
-"
-let fs = require('fs');
-try {
-	let manifest = fs.readFileSync('plugin.json', 'utf8'); 
-	manifest = JSON.parse(manifest);
-	manifest.settings_schema.settings[0].options=[]; 
-	let json = JSON.stringify(manifest, null, 2);
-	fs.writeFileSync('plugin.json', json, 'utf8'); 
-} catch (err) {
-	console.log(err);
-};"
-)
-endef
+# Sentry DSNs are baked into the binary at build time. Leaving them empty turns
+# error reporting off, which is what a local build wants.
+SERVER_DSN ?=
+WEBAPP_DSN ?=
+ICON_DATA  = data:image/svg+xml;base64,$(shell base64 $(ICON_FILE) | tr -d '\n')
+LDFLAGS    = -X 'main.PluginVersion=$(PLUGINVERSION)' -X 'main.SentryServerDSN=$(SERVER_DSN)' -X 'main.SentryWebappDSN=$(WEBAPP_DSN)' -X 'main.EncodedPluginIcon=$(ICON_DATA)'
 
-define UpdateServerHash
-git ls-files ./server | xargs shasum -a 256 | cut -d" " -f1 | shasum -a 256 | cut -d" " -f1 > server.sha
-endef
-
-define UpdateWebappHash
-git ls-files ./webapp | xargs shasum -a 256 | cut -d" " -f1 | shasum -a 256 | cut -d" " -f1 > webapp.sha
-endef
-
-
-PLUGINNAME=$(call GetPluginId)
-PLUGINVERSION=$(call GetPluginVersion)
-PACKAGENAME=mattermost-plugin-$(PLUGINNAME)-$(PLUGINVERSION)
-
-.PHONY: default build test run clean stop check-style check-style-server .distclean dist fix-style release
-
-.SILENT: default build test run clean stop check-style check-style-server .distclean dist fix-style release inithashes buildwebapp buildserver package
+.PHONY: default build test test-server coverage dist buildserver buildwebapp package \
+	check-style check-style-server check-style-webapp fix-style fix-style-server \
+	fix-style-webapp vendor clean run stop deploy
 
 default: check-style test dist
+
+build: dist
 
 check-style: check-style-server check-style-webapp
 
 check-style-webapp: .webinstall
-	echo Checking for style guide compliance
+	echo Checking webapp for style guide compliance
 	cd webapp && yarn run lintjs
 	cd webapp && yarn run lintstyle
 
 check-style-server:
 	if ! [ -x "$$(command -v golangci-lint)" ]; then \
-			echo "golangci-lint is not installed. Please see https://github.com/golangci/golangci-lint#install for installation instructions."; \
-			exit 1; \
-		fi; \
-	
+		echo "golangci-lint is not installed. See https://golangci-lint.run/welcome/install/"; \
+		exit 1; \
+	fi
 	echo Running golangci-lint
 	golangci-lint run ./server/...
-	
+
 fix-style: fix-style-server fix-style-webapp
 
 fix-style-server:
-	echo "Fixing server styles..."
 	if ! [ -x "$$(command -v golangci-lint)" ]; then \
-			echo "golangci-lint is not installed. Please see https://github.com/golangci/golangci-lint#install for installation instructions."; \
-			exit 1; \
-		fi; \
-	
-	echo Running golangci-lint
+		echo "golangci-lint is not installed. See https://golangci-lint.run/welcome/install/"; \
+		exit 1; \
+	fi
+	echo Running golangci-lint --fix
 	golangci-lint run --fix ./server/...
 
 fix-style-webapp:
-	echo "Fixing webapp styles..."
 	cd webapp && yarn run fixjs
 	cd webapp && yarn run fixstyle
-	
+
+vendor:
+	echo Downloading server dependencies
+	$(GO) mod download
+
+# The tests patch functions with bou.ke/monkey, which needs inlining disabled to
+# find what it rewrites.
 test-server: vendor
 	echo Running server tests
-	go test -gcflags=-l -v -coverprofile=coverage.txt ./...
+	$(GO) test -gcflags=-l -v -coverprofile=coverage.txt ./...
 
 test: test-server
 
 coverage: test-server
-	go tool cover -html=coverage.txt -o coverage.html
+	$(GO) tool cover -html=coverage.txt -o coverage.html
 
 .webinstall: webapp/yarn.lock
 	echo Getting webapp dependencies
-
 	cd webapp && yarn install
+	touch $@
 
-vendor: go.sum
-	echo "Downloading server dependencies"
-	go mod download
-
-inithashes:
-ifeq (,$(wildcard ./server.sha))
-	echo "Initializing server hash file"
-	$(call UpdateServerHash)
-endif
-ifeq (,$(wildcard ./webapp.sha))
-	echo "Initializing webapp hash file"
-	$(call UpdateWebappHash)
-endif
-
-prequickdist: plugin.json
-	echo Updating plugin.json with timezones
-	$(call AddTimeZoneOptions)
-	
-doquickdist: inithashes buildwebapp buildserver package
-	echo $(PLUGINNAME)
-	echo $(PACKAGENAME)
-	echo $(PLUGINVERSION)
-	echo Quick building plugin
+# Every platform listed in the manifest gets its own tarball. The webapp is
+# bundled once; each tarball then holds one server binary plus a manifest that
+# points at it.
+dist: package
+	echo Building plugin
 
 buildserver:
-	cp server.sha server.old.sha
-	echo "Updating server hash"
-	$(call UpdateServerHash)
-	FILES_MATCH=true;\
-	if cmp -s "server.sha" "server.old.sha"; then\
-		FILES_MATCH=true;\
-	else\
-		FILES_MATCH=false;\
-	fi;\
-	ARTIFACTS_EXIST=false;\
-	if [[ -f ./dist/intermediate/plugin_linux_amd64 && -f ./dist/intermediate/plugin_darwin_amd64 && -f ./dist/intermediate/plugin_windows_amd64.exe ]]; then\
-		ARTIFACTS_EXIST=true;\
-	else\
-		ARTIFACTS_EXIST=false;\
-	fi;\
-	if $$FILES_MATCH && $$ARTIFACTS_EXIST; then\
-		echo "Skipping server build as nothing updated since last build.";\
-	else\
-		echo "Building server component";\
-		# Build files from server\
-		# We need to disable gomodules when installing gox to prevent `go get` from updating go.mod file.\
-		# See this for more details -\
-		# 	https://stackoverflow.com/questions/56842385/using-go-get-to-download-binaries-without-adding-them-to-go-mod\
-		cd server;\
-		GO111MODULE=off go get github.com/mitchellh/gox;\
-		cd ..;\
-		$(shell go env GOPATH)/bin/gox -ldflags="-X 'main.PluginVersion=$(PLUGINVERSION)' -X 'main.SentryServerDSN=$(SERVER_DSN)' -X 'main.SentryWebappDSN=$(WEBAPP_DSN)' -X 'main.EncodedPluginIcon=data:image/svg+xml;base64,`base64 webapp/src/assets/images/logo.svg`' " -osarch='darwin/amd64 linux/amd64 windows/amd64' -gcflags='all=-N -l' -output 'dist/intermediate/plugin_{{.OS}}_{{.Arch}}' ./server;\
-	fi
+	rm -rf $(BUILD_DIR)
+	mkdir -p $(BUILD_DIR)
+	@for platform in $(PLATFORMS); do \
+		executable=$$(node -p "require('./$(MANIFEST_FILE)').server.executables['$$platform']"); \
+		echo "Building server for $$platform"; \
+		CGO_ENABLED=0 GOOS=$${platform%-*} GOARCH=$${platform#*-} $(GO) build -trimpath $(GOFLAGS) \
+			-ldflags="$(LDFLAGS)" -o $(BUILD_DIR)/$$(basename $$executable) ./server || exit 1; \
+	done
 
-buildwebapp:
-	cp webapp.sha webapp.old.sha
-	echo "Updating webapp hash"
-	$(call UpdateWebappHash)
-	FILES_MATCH=true;\
-	if cmp -s "webapp.sha" "webapp.old.sha"; then\
-		FILES_MATCH=true;\
-	else\
-		FILES_MATCH=false;\
-	fi;\
-	pwd;\
-	DIST_DIR="./dist/$(PLUGINNAME)/webapp";\
-	export DIST_EXISTS=true;\
-	if [ -d $$DIST_DIR ]; then\
-		export DIST_EXISTS=true;\
-	else\
-		export DIST_EXISTS=false;\
-	fi;\
-	echo $$FILES_MATCH;\
-	echo $$DIST_EXISTS;\
-	if $$FILES_MATCH && $$DIST_EXISTS; then\
-		echo "Skipping webapp build as nothing updated since last build.";\
-	else\
-		cd webapp;\
-		yarn run build;\
-		cd ..;\
-		mkdir -p dist/$(PLUGINNAME)/webapp;\
-		cp -r webapp/dist/* dist/$(PLUGINNAME)/webapp/;\
-	fi
+buildwebapp: .webinstall
+	echo Building webapp
+	rm -rf webapp/dist $(BUNDLE_DIR)/webapp
+	cd webapp && yarn run build
+	mkdir -p $(BUNDLE_DIR)/webapp
+	cp -r webapp/dist/* $(BUNDLE_DIR)/webapp/
 
 package:
-	WEBAPP_CHANGED=true;\
-	if cmp -s "webapp.sha" "webapp.old.sha"; then\
-		WEBAPP_CHANGED=false;\
-	else\
-		WEBAPP_CHANGED=true;\
-	fi;\
-	SERVER_CHANGED=true;\
-	if cmp -s "server.sha" "server.old.sha"; then\
-		SERVER_CHANGED=false;\
-	else\
-		SERVER_CHANGED=true;\
-	fi;\
-	ARTIFACTS_MISSING=false;\
-	if [[ -f dist/$(PACKAGENAME)-linux-amd64.tar.gz && -f dist/$(PACKAGENAME)-darwin-amd64.tar.gz && dist/$(PACKAGENAME)-windows-amd64.tar.gz ]]; then\
-		ARTIFACTS_MISSING=false;\
-	else\
-		ARTIFACTS_MISSING=true;\
-	fi;\
-	if $$WEBAPP_CHANGED || $$SERVER_CHANGED || $$ARTIFACTS_MISSING; then\
-		mkdir -p dist/$(PLUGINNAME);\
-		cp plugin.json dist/$(PLUGINNAME)/;\
-		mkdir -p dist/$(PLUGINNAME)/server;\
-		# build darwin artifact\
-		pwd;\
-		cp dist/intermediate/plugin_darwin_amd64 dist/$(PLUGINNAME)/server/plugin.exe;\
-		cd dist && tar -zcvf $(PACKAGENAME)-darwin-amd64.tar.gz $(PLUGINNAME)/*;\
-		cd ..;\
-		# build linux artifact\
-		cp dist/intermediate/plugin_linux_amd64 dist/$(PLUGINNAME)/server/plugin.exe;\
-		cd dist && tar -zcvf $(PACKAGENAME)-linux-amd64.tar.gz $(PLUGINNAME)/*;\
-		cd ..;\
-		# build windows artifact\
-		cp dist/intermediate/plugin_windows_amd64.exe dist/$(PLUGINNAME)/server/plugin.exe;\
-		cd dist && tar -zcvf $(PACKAGENAME)-windows-amd64.tar.gz $(PLUGINNAME)/*;\
-		cd ..;\
-		echo Linux plugin built at: dist/$(PACKAGENAME)-linux-amd64.tar.gz;\
-		echo MacOS X plugin built at: dist/$(PACKAGENAME)-darwin-amd64.tar.gz;\
-		echo Windows plugin built at: dist/$(PACKAGENAME)-windows-amd64.tar.gz;\
-	else\
-		echo "Skipping package plugin as nothing changed";\
-	fi
-	rm server.old.sha
-	rm webapp.old.sha
+	@for platform in $(PLATFORMS); do \
+		executable=$$(node -p "require('./$(MANIFEST_FILE)').server.executables['$$platform']") || exit 1; \
+		rm -rf $(BUNDLE_DIR)/server; \
+		mkdir -p $(BUNDLE_DIR)/server; \
+		cp $(BUILD_DIR)/$$(basename $$executable) $(BUNDLE_DIR)/$$executable || exit 1; \
+		node build/generate-manifest.js $(MANIFEST_FILE) $(TIMEZONES_FILE) $(BUNDLE_DIR)/plugin.json $$platform || exit 1; \
+		(cd dist && tar -zcf $(PACKAGENAME)-$$platform.tar.gz $(PLUGINNAME)) || exit 1; \
+		echo "Built dist/$(PACKAGENAME)-$$platform.tar.gz"; \
+	done
 
-postquickdist:
-	echo Remove data from plugin.json
-	$(call RemoveTimeZoneOptions)
-	
-quickdist: prequickdist doquickdist postquickdist
-
-dist: vendor .webinstall quickdist
-	echo Building plugin
+clean:
+	echo Cleaning plugin
+	rm -rf dist webapp/dist webapp/node_modules webapp/.npminstall .webinstall coverage.txt coverage.html
 
 run: .webinstall
 	echo Not yet implemented
@@ -255,15 +129,8 @@ run: .webinstall
 stop:
 	echo Not yet implemented
 
-clean: .distclean
-	echo Cleaning plugin
-
-	rm -rf webapp/node_modules
-	rm -rf webapp/.npminstall
-
-# deploy installs the plugin to a (development) server, using the API if appropriate environment
-# variables are defined, or copying the files directly to a sibling mattermost-server directory
-.PHONY: deploy
+# deploy installs the plugin on a development server through the API. It needs
+# MM_SERVICESETTINGS_SITEURL, MM_ADMIN_USERNAME and MM_ADMIN_PASSWORD to be set.
 deploy:
 	echo "Installing plugin via API"
 
@@ -273,17 +140,9 @@ deploy:
 	echo "Deleting existing plugin..." && \
 	http DELETE $(MM_SERVICESETTINGS_SITEURL)/api/v4/plugins/$(PLUGINNAME) Authorization:"Bearer $$TOKEN" > /dev/null && \
 	echo "Uploading plugin..." && \
-	http --check-status --form POST $(MM_SERVICESETTINGS_SITEURL)/api/v4/plugins plugin@dist/$(PACKAGENAME)-$(PLATFORM)-amd64.tar.gz Authorization:"Bearer $$TOKEN" > /dev/null && \
+	http --check-status --form POST $(MM_SERVICESETTINGS_SITEURL)/api/v4/plugins plugin@dist/$(PACKAGENAME)-$(PLATFORM)-$(ARCH).tar.gz Authorization:"Bearer $$TOKEN" > /dev/null && \
 	echo "Enabling uploaded plugin..." && \
 	http POST $(MM_SERVICESETTINGS_SITEURL)/api/v4/plugins/$(PLUGINNAME)/enable Authorization:"Bearer $$TOKEN" > /dev/null && \
 	echo "Logging out admin user..." && \
 	http POST $(MM_SERVICESETTINGS_SITEURL)/api/v4/users/logout Authorization:"Bearer $$TOKEN" > /dev/null && \
 	echo "Plugin uploaded successfully"
-
-release: dist
-	echo "Installing ghr"
-	go get -u github.com/tcnksm/ghr
-	echo "Create new tag"
-	$(shell git tag $(PLUGINVERSION))
-	echo "Uploading artifacts"
-	ghr -t $(GITHUB_TOKEN) -u $(ORG_NAME) -r $(REPO_NAME) $(PLUGINVERSION) dist/
