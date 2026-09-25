@@ -6,7 +6,7 @@
 A Mattermost plugin for communicating daily standups across teams
 
 
-[![CircleCI](https://circleci.com/gh/standup-raven/standup-raven/tree/master.svg?style=svg)](https://circleci.com/gh/standup-raven/standup-raven/tree/master)
+[![CI](https://github.com/standup-raven/standup-raven/actions/workflows/ci.yml/badge.svg)](https://github.com/standup-raven/standup-raven/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/standup-raven/standup-raven/branch/master/graph/badge.svg)](https://codecov.io/gh/standup-raven/standup-raven)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/2940/badge)](https://bestpractices.coreinfrastructure.org/projects/2940)
 

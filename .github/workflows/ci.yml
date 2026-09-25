@@ -41,6 +41,28 @@ jobs:
           path: coverage.txt
           if-no-files-found: ignore
 
+  webapp:
+    name: Lint webapp
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # The webapp is still built by webpack 4, which needs the Node version
+      # this plugin has always shipped with.
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '14.21.3'
+          cache: yarn
+          cache-dependency-path: webapp/yarn.lock
+
+      - name: Install yarn
+        run: npm install --global yarn
+
+      - name: Lint
+        run: make check-style-webapp
+
   lint:
     name: Lint server
     runs-on: ubuntu-latest
