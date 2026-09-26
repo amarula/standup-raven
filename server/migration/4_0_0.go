@@ -24,3 +24,8 @@ func upgradeDatabaseToVersion4_1_1(fromVersion string) error {
 func upgradeDatabaseToVersion4_2_0(fromVersion string) error {
 	return updateSchemaVersion(version4_2_0)
 }
+
+// 4.2.1 fixes the web app's error boundary; nothing stored changes shape.
+func upgradeDatabaseToVersion4_2_1(fromVersion string) error {
+	return updateSchemaVersion(version4_2_1)
+}

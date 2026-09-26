@@ -35,6 +35,7 @@ var (
 	version4_1_0          = "4.1.0"
 	version4_1_1          = "4.1.1"
 	version4_2_0          = "4.2.0"
+	version4_2_1          = "4.2.1"
 )
 
 // indicates from what all versions can the plugin
@@ -63,6 +64,7 @@ var upgradeCompatibility = map[string][]string{
 	version4_1_0: {version4_0_0, version3_3_2, version3_3_1, version3_3_0, version3_2_2, version3_2_1, version3_2_0, version3_1_1, version3_1_0, version3_0_2, version3_0_1, version3_0_0, version2_0_0, version1_5_0},
 	version4_1_1: {version4_1_0, version4_0_0, version3_3_2, version3_3_1, version3_3_0, version3_2_2, version3_2_1, version3_2_0, version3_1_1, version3_1_0, version3_0_2, version3_0_1, version3_0_0, version2_0_0, version1_5_0},
 	version4_2_0: {version4_1_1, version4_1_0, version4_0_0, version3_3_2, version3_3_1, version3_3_0, version3_2_2, version3_2_1, version3_2_0, version3_1_1, version3_1_0, version3_0_2, version3_0_1, version3_0_0, version2_0_0, version1_5_0},
+	version4_2_1: {version4_2_0, version4_1_1, version4_1_0, version4_0_0, version3_3_2, version3_3_1, version3_3_0, version3_2_2, version3_2_1, version3_2_0, version3_1_1, version3_1_0, version3_0_2, version3_0_1, version3_0_0, version2_0_0, version1_5_0},
 }
 
 type Migration func(fromVersion string) error
@@ -85,6 +87,7 @@ var migrations = []Migration{
 	upgradeDatabaseToVersion4_1_0,
 	upgradeDatabaseToVersion4_1_1,
 	upgradeDatabaseToVersion4_2_0,
+	upgradeDatabaseToVersion4_2_1,
 }
 
 // DatabaseMigration gets the current database schema version and performs
