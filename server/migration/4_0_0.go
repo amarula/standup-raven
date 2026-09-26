@@ -34,3 +34,8 @@ func upgradeDatabaseToVersion4_2_1(fromVersion string) error {
 func upgradeDatabaseToVersion4_2_2(fromVersion string) error {
 	return updateSchemaVersion(version4_2_2)
 }
+
+// 4.2.3 fixes dropdowns opening behind the dialog in the web app.
+func upgradeDatabaseToVersion4_2_3(fromVersion string) error {
+	return updateSchemaVersion(version4_2_3)
+}
