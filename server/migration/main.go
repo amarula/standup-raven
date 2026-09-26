@@ -62,10 +62,7 @@ var upgradeCompatibility = map[string][]string{
 	version4_0_0: {version3_3_2, version3_3_1, version3_3_0, version3_2_2, version3_2_1, version3_2_0, version3_1_1, version3_1_0, version3_0_2, version3_0_1, version3_0_0, version2_0_0, version1_5_0},
 	version4_1_0: {version4_0_0, version3_3_2, version3_3_1, version3_3_0, version3_2_2, version3_2_1, version3_2_0, version3_1_1, version3_1_0, version3_0_2, version3_0_1, version3_0_0, version2_0_0, version1_5_0},
 	version4_1_1: {version4_1_0, version4_0_0, version3_3_2, version3_3_1, version3_3_0, version3_2_2, version3_2_1, version3_2_0, version3_1_1, version3_1_0, version3_0_2, version3_0_1, version3_0_0, version2_0_0, version1_5_0},
-	// The four in quotes are builds that were handed over for testing before this
-	// version was settled. They never shipped, but a test server may have written
-	// one of them, so they are named here to be upgraded from.
-	version4_2_0: {"4.4.0", "4.3.0", "4.2.3", "4.2.2", "4.2.1", version4_1_1, version4_1_0, version4_0_0, version3_3_2, version3_3_1, version3_3_0, version3_2_2, version3_2_1, version3_2_0, version3_1_1, version3_1_0, version3_0_2, version3_0_1, version3_0_0, version2_0_0, version1_5_0},
+	version4_2_0: {version4_1_1, version4_1_0, version4_0_0, version3_3_2, version3_3_1, version3_3_0, version3_2_2, version3_2_1, version3_2_0, version3_1_1, version3_1_0, version3_0_2, version3_0_1, version3_0_0, version2_0_0, version1_5_0},
 }
 
 type Migration func(fromVersion string) error
