@@ -28,7 +28,7 @@ func commandStandup() *Config {
 					HelpText: "Report visibility",
 					Type:     model.AutocompleteArgTypeStaticList,
 					Required: true,
-					Data: model.AutocompleteStaticListArg{
+					Data: &model.AutocompleteStaticListArg{
 						PossibleArguments: []model.AutocompleteListItem{
 							{
 								Item:     "Public",

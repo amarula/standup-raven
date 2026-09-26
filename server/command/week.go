@@ -21,11 +21,11 @@ func commandWeek() *Config {
 			RoleID:   model.SystemUserRoleId,
 			Arguments: []*model.AutocompleteArg{
 				{
-					HelpText: "How many weeks back to look. Leave it out for this week.",
+					HelpText: "Weeks back to look. 0, or leaving it off, is this week.",
 					Type:     model.AutocompleteArgTypeText,
-					Required: false,
+					Required: true,
 					Data: &model.AutocompleteTextArg{
-						Hint:    "[weeks]",
+						Hint:    "0",
 						Pattern: "\\d",
 					},
 				},
