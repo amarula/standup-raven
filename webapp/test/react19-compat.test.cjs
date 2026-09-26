@@ -608,6 +608,7 @@ async function main() {
             windowCloseTime: '18:00',
             reportFormat: 'type_aggregated',
             sections: ['What did you do today?', 'What will you do today?'],
+            sectionTypes: {},
             members: ['user_one', 'user_two'],
             enabled: true,
             timezone: 'Asia/Kolkata',
@@ -630,6 +631,7 @@ async function main() {
             windowCloseTime: '18:00',
             reportFormat: 'type_aggregated',
             sections: ['What did you do today?', 'What will you do today?'],
+            sectionTypes: {},
             members: ['user_one', 'user_two'],
             enabled: true,
             timezone: 'Asia/Kolkata',
@@ -735,6 +737,16 @@ async function main() {
                 check('the schedule tab holds the saved recurrence',
                     document.querySelector('#standup-config-tabs-panel-schedule').textContent.indexOf('Start Date') >= 0);
 
+                const sectionType = document.querySelector('#standup-section-type-1');
+                check('every section row says what kind of answer it wants',
+                    sectionType.textContent.indexOf('Text') >= 0, sectionType.textContent);
+
+                act(() => sectionType.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true, cancelable: true})));
+                act(() => sectionType.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'ArrowDown', bubbles: true, cancelable: true})));
+                act(() => sectionType.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'Enter', bubbles: true, cancelable: true})));
+                check('and a section can be told to take long text',
+                    sectionType.textContent.indexOf('Long text') >= 0, sectionType.textContent);
+
                 // Change one thing the way a user would, then save.
                 const reportFormat = document.querySelector('#standup-config-report-format');
                 act(() => reportFormat.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true, cancelable: true})));
@@ -751,7 +763,11 @@ async function main() {
                     post && post.url);
                 check('saving carries the CSRF token', Boolean(post) && post.headers['X-CSRF-Token'] === 'csrf_token');
                 check('and the body is unchanged apart from what was edited',
-                    Boolean(post) && JSON.stringify(post.body) === JSON.stringify({...body, reportFormat: 'user_aggregated'}),
+                    Boolean(post) && JSON.stringify(post.body) === JSON.stringify({
+                        ...body,
+                        reportFormat: 'user_aggregated',
+                        sectionTypes: {'What did you do today?': 'longtext'},
+                    }),
                     post && JSON.stringify(post.body));
 
                 act(() => root.unmount());
@@ -765,9 +781,27 @@ async function main() {
         const stub = global.__superagentStub;
 
         check('blank lines are not submitted',
-            JSON.stringify(buildUserStandupPayload({standup: {Today: {line1: ' did a thing ', line2: '   ', line3: 'and another'}}}, 'channel_id')) ===
+            JSON.stringify(buildUserStandupPayload({standup: {Today: {line1: ' did a thing ', line2: '   ', line3: 'and another'}}}, 'channel_id', {})) ===
             JSON.stringify({channelId: 'channel_id', standup: {Today: ['did a thing', 'and another']}}),
-            JSON.stringify(buildUserStandupPayload({standup: {Today: {line1: ' did a thing '}}}, 'channel_id')));
+            JSON.stringify(buildUserStandupPayload({standup: {Today: {line1: ' did a thing '}}}, 'channel_id', {})));
+
+        // Work notes keep their blank lines: dropping them would take the blank
+        // lines out of a code block.
+        const notes = 'Trace:\n\n```\nE: timeout\n\nretry\n```';
+        check('work notes are stored as they were written, blank lines and all',
+            JSON.stringify(buildUserStandupPayload({standup: {Details: {line1: notes}}}, 'channel_id', {Details: 'longtext'})) ===
+            JSON.stringify({channelId: 'channel_id', standup: {Details: [notes]}}),
+            JSON.stringify(buildUserStandupPayload({standup: {Details: {line1: notes}}}, 'channel_id', {Details: 'longtext'})));
+
+        check('work notes with nothing but whitespace carry no content',
+            JSON.stringify(buildUserStandupPayload({standup: {Details: {line1: '   \n  '}}}, 'channel_id', {Details: 'longtext'}).standup) ===
+            JSON.stringify({Details: []}),
+            JSON.stringify(buildUserStandupPayload({standup: {Details: {line1: '   \n  '}}}, 'channel_id', {Details: 'longtext'}).standup));
+
+        check('issue IDs are uppercased, deduplicated and sorted',
+            JSON.stringify(buildUserStandupPayload({standup: {Tickets: {line1: 'axelera-210, AXELERA-183 axelera-210 not-an-id'}}}, 'channel_id', {Tickets: 'issues'}).standup) ===
+            JSON.stringify({Tickets: ['AXELERA-183', 'AXELERA-210']}),
+            JSON.stringify(buildUserStandupPayload({standup: {Tickets: {line1: 'axelera-210, AXELERA-183 axelera-210 not-an-id'}}}, 'channel_id', {Tickets: 'issues'}).standup));
 
         const open = async (config, filled) => {
             stub.reset();
@@ -844,6 +878,39 @@ async function main() {
                     standup: {Today: ['what I did'], Tomorrow: ['something for tomorrow']},
                 }),
                 post && JSON.stringify(post.body));
+
+            act(() => root.unmount());
+        }
+
+        // A channel whose sections ask for different kinds of answer.
+        {
+            const {container, root} = await open({
+                enabled: true,
+                members: ['user_one'],
+                sections: ['Today', 'Details', 'Tickets'],
+                sectionTypes: {Details: 'longtext', Tickets: 'issues'},
+            }, {Details: ['Trace:\n\n```\nE: timeout\n```'], Tickets: ['AXELERA-210', 'AXELERA-183']});
+
+            const next = document.querySelector('[aria-label="Next section"]');
+
+            check('a question answered in lines keeps its numbered rows',
+                document.querySelectorAll('.standup-modal-line').length > 0 &&
+                document.querySelectorAll('textarea').length === 0,
+                `${document.querySelectorAll('.standup-modal-line').length} rows`);
+
+            act(() => next.click());
+            const notes = document.querySelector('textarea');
+            check('work notes are one box rather than numbered rows', Boolean(notes));
+            check('and they come back exactly as they were written',
+                notes && notes.value === 'Trace:\n\n```\nE: timeout\n```', notes && notes.value);
+
+            act(() => next.click());
+            const issues = document.querySelector('#standup-issues-Tickets');
+            check('issue IDs are one field with no rows behind it',
+                Boolean(issues) && document.querySelectorAll('textarea').length === 0 &&
+                document.querySelectorAll('.standup-modal-line').length === 0);
+            check('showing the issues that were filed last time',
+                issues && issues.value === 'AXELERA-210, AXELERA-183', issues && issues.value);
 
             act(() => root.unmount());
         }

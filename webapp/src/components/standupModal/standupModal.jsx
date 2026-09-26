@@ -7,7 +7,7 @@ import ChevronLeftIcon from '@mattermost/compass-icons/components/chevron-left';
 import ChevronRightIcon from '@mattermost/compass-icons/components/chevron-right';
 
 import Constants from '../../constants';
-import {Alert, Button, Modal, TextInput} from '../ui';
+import {Alert, Button, Modal, Textarea, TextInput} from '../ui';
 import {buildUserStandupPayload} from './payload';
 import './style.css';
 
@@ -89,9 +89,18 @@ class StandupModal extends React.Component {
                                 continue;
                             }
 
-                            result.body.standup[sectionTitle].forEach((line, index) => {
-                                standup[sectionTitle][`line${index + 1}`] = line;
-                            });
+                            const lines = result.body.standup[sectionTitle];
+                            const sectionType = this.sectionType(sectionTitle);
+
+                            if (sectionType === Constants.SECTION_TYPES.LONG_TEXT) {
+                                standup[sectionTitle] = {line1: lines.join('\n')};
+                            } else if (sectionType === Constants.SECTION_TYPES.ISSUES) {
+                                standup[sectionTitle] = {line1: lines.join(', ')};
+                            } else {
+                                lines.forEach((line, index) => {
+                                    standup[sectionTitle][`line${index + 1}`] = line;
+                                });
+                            }
                         }
                         this.setState({standup});
                     } else if (result.status !== HttpStatus.NOT_FOUND) {
@@ -101,6 +110,12 @@ class StandupModal extends React.Component {
                 });
         });
     };
+
+    sectionType(sectionTitle) {
+        const sectionTypes = (this.state.standupConfig && this.state.standupConfig.sectionTypes) || {};
+
+        return sectionTypes[sectionTitle] || Constants.SECTION_TYPES.TEXT;
+    }
 
     handleTasks = (sectionTitle, event) => {
         const standup = {...this.state.standup};
@@ -119,7 +134,7 @@ class StandupModal extends React.Component {
         request
             .post(`${this.props.siteURL}/${Constants.URL_SUBMIT_USER_STANDUP}?channel_id=${this.props.channelID}`)
             .withCredentials()
-            .send(buildUserStandupPayload(this.state, this.props.channelID))
+            .send(buildUserStandupPayload(this.state, this.props.channelID, (this.state.standupConfig || {}).sectionTypes))
             .set('X-CSRF-Token', Cookies.get(Constants.MATTERMOST_CSRF_COOKIE))
             .set('Content-Type', 'application/json')
             .end((err, res) => {
@@ -153,6 +168,38 @@ class StandupModal extends React.Component {
             this.setState({activeTab: next});
         }
     };
+
+    renderSection(sectionTitle) {
+        const sectionType = this.sectionType(sectionTitle);
+
+        if (sectionType === Constants.SECTION_TYPES.LONG_TEXT) {
+            return (
+                <Textarea
+                    id={`standup-notes-${sectionTitle}`}
+                    name={'line1'}
+                    value={(this.state.standup[sectionTitle] || {}).line1 || ''}
+                    onChange={(event) => this.handleTasks(sectionTitle, event)}
+                    placeholder={'Anything worth writing down: test results, commands, log excerpts, links.'}
+                    ariaLabel={sectionTitle}
+                />
+            );
+        }
+
+        if (sectionType === Constants.SECTION_TYPES.ISSUES) {
+            return (
+                <TextInput
+                    id={`standup-issues-${sectionTitle}`}
+                    name={'line1'}
+                    value={(this.state.standup[sectionTitle] || {}).line1 || ''}
+                    onChange={(event) => this.handleTasks(sectionTitle, event)}
+                    placeholder={'AXELERA-210, AXELERA-183'}
+                    ariaLabel={sectionTitle}
+                />
+            );
+        }
+
+        return this.renderRows(sectionTitle);
+    }
 
     // One row more than there is anything to say, so there is always somewhere
     // to type the next line.
@@ -287,7 +334,7 @@ class StandupModal extends React.Component {
                             {messageHtmlToComponent(formatText(activeTab))}
                         </h2>
                         <div className={'standup-modal-lines'}>
-                            {this.renderRows(activeTab)}
+                            {this.renderSection(activeTab)}
                         </div>
                         <div className={'standup-modal-nav'}>
                             <Button

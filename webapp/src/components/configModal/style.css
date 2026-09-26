@@ -11,6 +11,22 @@
   overflow-y: auto;
 }
 
+.standup-config-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.standup-config-section .standup-input-group {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.standup-config-section .standup-select {
+  flex: 0 0 auto;
+  width: 132px;
+}
+
 .standup-config-to {
   color: rgba(var(--center-channel-color-rgb, 63, 67, 80), 0.72);
   font-size: 14px;

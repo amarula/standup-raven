@@ -16,6 +16,12 @@ import './style.css';
 
 const configModalCloseTimeout = 1000;
 
+const SECTION_TYPE_OPTIONS = [
+    {value: Constants.SECTION_TYPES.TEXT, label: 'Text'},
+    {value: Constants.SECTION_TYPES.LONG_TEXT, label: 'Long text'},
+    {value: Constants.SECTION_TYPES.ISSUES, label: 'Issue IDs'},
+];
+
 const REPORT_FORMAT_OPTIONS = [
     {value: 'user_aggregated', label: 'User Aggregated'},
     {value: 'type_aggregated', label: 'Type Aggregated'},
@@ -36,6 +42,7 @@ class ConfigModal extends React.Component {
             windowCloseTime: '00:00',
             reportFormat: 'user_aggregated',
             sections: {},
+            sectionTypes: {},
             members: [],
             enabled: true,
             windowOpenReminderEnabled: true,
@@ -78,8 +85,13 @@ class ConfigModal extends React.Component {
                     if (result.ok) {
                         const standupConfig = result.body;
                         const sections = {};
+                        const sectionTypes = {};
+                        const configuredTypes = standupConfig.sectionTypes || {};
+
                         for (let i = 0; i < standupConfig.sections.length; ++i) {
-                            sections[`line${i + 1}`] = standupConfig.sections[i];
+                            const name = `line${i + 1}`;
+                            sections[name] = standupConfig.sections[i];
+                            sectionTypes[name] = configuredTypes[standupConfig.sections[i]] || Constants.SECTION_TYPES.TEXT;
                         }
 
                         this.setState({
@@ -88,6 +100,7 @@ class ConfigModal extends React.Component {
                             reportFormat: standupConfig.reportFormat,
                             members: standupConfig.members,
                             sections,
+                            sectionTypes,
                             enabled: standupConfig.enabled,
                             timezone: standupConfig.timezone,
                             windowOpenReminderEnabled: standupConfig.windowOpenReminderEnabled,
@@ -184,6 +197,10 @@ class ConfigModal extends React.Component {
         this.setState({rruleString, startDate});
     };
 
+    handleSectionTypeChange = (name, sectionType) => {
+        this.setState({sectionTypes: {...this.state.sectionTypes, [name]: sectionType}});
+    };
+
     handleSectionChange = (event) => {
         const sections = {...this.state.sections};
         sections[event.target.name] = event.target.value;
@@ -237,17 +254,29 @@ class ConfigModal extends React.Component {
         for (let i = 0; i <= count; ++i) {
             const name = `line${i + 1}`;
             rows.push(
-                <TextInput
+                <div
                     key={name}
-                    id={`standup-section-${i + 1}`}
-                    name={name}
-                    prefix={`${i + 1}.`}
-                    value={this.state.sections[name] || ''}
-                    onChange={this.handleSectionChange}
-                    disabled={!this.state.hasPermission}
-                    placeholder={'What did you work on?'}
-                    ariaLabel={`Standup section ${i + 1}`}
-                />,
+                    className={'standup-config-section'}
+                >
+                    <TextInput
+                        id={`standup-section-${i + 1}`}
+                        name={name}
+                        prefix={`${i + 1}.`}
+                        value={this.state.sections[name] || ''}
+                        onChange={this.handleSectionChange}
+                        disabled={!this.state.hasPermission}
+                        placeholder={'What did you work on?'}
+                        ariaLabel={`Standup section ${i + 1}`}
+                    />
+                    <Select
+                        id={`standup-section-type-${i + 1}`}
+                        value={this.state.sectionTypes[name] || Constants.SECTION_TYPES.TEXT}
+                        options={SECTION_TYPE_OPTIONS}
+                        onChange={(sectionType) => this.handleSectionTypeChange(name, sectionType)}
+                        disabled={!this.state.hasPermission}
+                        ariaLabel={`Kind of answer for section ${i + 1}`}
+                    />
+                </div>,
             );
         }
 

@@ -20,6 +20,14 @@ const URL_PLUGIN_CONFIG = `${PLUGIN_BASE_URL}/plugin-config`;
 
 const MATTERMOST_CSRF_COOKIE = 'MMCSRF';
 
+// What kind of input a section asks for. These are the values the server
+// stores, so they are not ours to rename here.
+const SECTION_TYPES = {
+    TEXT: 'text',
+    LONG_TEXT: 'longtext',
+    ISSUES: 'issues',
+};
+
 const ACTIONS = {
     OPEN_STANDUP_MODAL: `${PLUGIN_NAME}_open_standup_modal`,
     CLOSE_STANDUP_MODAL: `${PLUGIN_NAME}_close_standup_modal`,
@@ -30,6 +38,7 @@ const ACTIONS = {
 };
 
 export default {
+    SECTION_TYPES,
     URL_SUBMIT_USER_STANDUP,
     URL_STANDUP_CONFIG,
     URL_SPINNER_ICON,

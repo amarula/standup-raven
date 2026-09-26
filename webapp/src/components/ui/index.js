@@ -8,5 +8,6 @@ export {default as Radios} from './radios';
 export {default as Modal, focusableWithin} from './modal';
 export {default as Select, optionID} from './select';
 export {default as Tabs} from './tabs';
+export {default as Textarea} from './textarea';
 export {default as TextInput} from './text-input';
 export {default as Toggle} from './toggle';

@@ -67,6 +67,17 @@
   cursor: not-allowed;
 }
 
+.standup-textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: auto;
+  min-height: 120px;
+  padding: 8px 12px;
+  line-height: 20px;
+  resize: vertical;
+}
+
 .standup-input-group {
   display: flex;
   box-sizing: border-box;
