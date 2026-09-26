@@ -39,3 +39,9 @@ func upgradeDatabaseToVersion4_2_2(fromVersion string) error {
 func upgradeDatabaseToVersion4_2_3(fromVersion string) error {
 	return updateSchemaVersion(version4_2_3)
 }
+
+// 4.3.0 adds section types, work notes and issue IDs. A section with no type
+// recorded is plain text, so nothing already stored changes shape.
+func upgradeDatabaseToVersion4_3_0(fromVersion string) error {
+	return updateSchemaVersion(version4_3_0)
+}

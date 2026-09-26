@@ -36,6 +36,15 @@ Just follow these steps and you'll be ready in no time.
     For example, if your team fills their standup at the beginning of their work day, suggested sections would be
     `Yesterday`, `Today` and maybe `Blockers`.
         
+        Each section also says what kind of answer it wants:
+
+        * **Text** (the default) - the question is answered in as many lines as you like, each one a row
+          in the standup modal.
+        * **Long text** - one large box for work notes: test results, commands, log excerpts, links.
+          It takes Markdown, including fenced code blocks, and is stored exactly as written.
+        * **Issue IDs** - one or more tracker issue IDs, such as `AXELERA-210, AXELERA-183`. They are
+          stored uppercased and deduplicated, and the weekly digest groups the week by them.
+
         At least one section is required to be specified.
         
 1. **Saving standup config** - Save the standup config that you filled.
@@ -69,6 +78,17 @@ Just follow these steps and you'll be ready in no time.
     For example, `/standup update today reviewing the login fix`. Section names are matched against the
     sections configured for the channel, ignoring case, and a name that contains spaces can be quoted:
     `/standup update "in progress" waiting on the API`. The command replies with the section as it now reads.
+
+1. **Looking back over the week** - The following slash command shows the week's standups grouped by
+   the issues they name, so the work can be copied into a tracker's work log -
+
+        /standup week [weeks]
+
+    With no argument it shows the week containing today, Monday to Sunday in the channel's timezone.
+    `/standup week 1` shows the week before, which is what you want on a Monday morning. Only you see
+    the reply. An entry that names several issues is listed under each of them; work that named no issue
+    is grouped at the end under *Not tied to an issue*, so it is visible rather than missing. A week too
+    long for one message is sent as several replies rather than cut short.
 
 1. **Members who are away** - A standup report marks members whose Mattermost status is *Out Of Office*
     separately, so they are not listed among those who have not submitted. This can be turned off in the
