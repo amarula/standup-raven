@@ -23,7 +23,16 @@ const (
 	standupSectionsMinLength       = 1
 	channelHeaderScheduleSeparator = "|"
 	standupScheduleEndMarker       = "** **"
+
+	// What kind of input a section asks for. A section with no type recorded is
+	// SectionTypeText, which is what every section was before types existed and
+	// what a configuration stored before them reads as.
+	SectionTypeText     = "text"
+	SectionTypeLongText = "longtext"
+	SectionTypeIssues   = "issues"
 )
+
+var sectionTypes = []string{SectionTypeText, SectionTypeLongText, SectionTypeIssues}
 
 var (
 	standupScheduleRegex = regexp.MustCompile(`^\*\*Standup Schedule\*\*: .+\*\* \*\*$`)
@@ -68,20 +77,25 @@ func (us *UserStandup) IsValid() error {
 }
 
 type Config struct {
-	RRule                      *rrule.RRule `json:"rrule"`
-	WindowCloseTime            otime.OTime  `json:"windowCloseTime"`
-	WindowOpenTime             otime.OTime  `json:"windowOpenTime"`
-	StartDate                  time.Time    `json:"startDate"`
-	Sections                   []string     `json:"sections"`
-	Members                    []string     `json:"members"`
-	ChannelID                  string       `json:"channelId"`
-	ReportFormat               string       `json:"reportFormat"`
-	Timezone                   string       `json:"timezone"`
-	RRuleString                string       `json:"rruleString"`
-	Enabled                    bool         `json:"enabled"`
-	WindowOpenReminderEnabled  bool         `json:"windowOpenReminderEnabled"`
-	WindowCloseReminderEnabled bool         `json:"windowCloseReminderEnabled"`
-	ScheduleEnabled            bool         `json:"scheduleEnabled"`
+	RRule           *rrule.RRule `json:"rrule"`
+	WindowCloseTime otime.OTime  `json:"windowCloseTime"`
+	WindowOpenTime  otime.OTime  `json:"windowOpenTime"`
+	StartDate       time.Time    `json:"startDate"`
+	Sections        []string     `json:"sections"`
+	Members         []string     `json:"members"`
+
+	// Section title -> the kind of input it asks for. Absent, or missing a
+	// title, means SectionTypeText, so a configuration saved before this field
+	// existed reads exactly as it did then.
+	SectionTypes               map[string]string `json:"sectionTypes,omitempty"`
+	ChannelID                  string            `json:"channelId"`
+	ReportFormat               string            `json:"reportFormat"`
+	Timezone                   string            `json:"timezone"`
+	RRuleString                string            `json:"rruleString"`
+	Enabled                    bool              `json:"enabled"`
+	WindowOpenReminderEnabled  bool              `json:"windowOpenReminderEnabled"`
+	WindowCloseReminderEnabled bool              `json:"windowCloseReminderEnabled"`
+	ScheduleEnabled            bool              `json:"scheduleEnabled"`
 }
 
 func (sc *Config) IsValid() error {
@@ -135,12 +149,69 @@ func (sc *Config) IsValid() error {
 	return nil
 }
 
+// SectionType answers what kind of input a section asks for, defaulting to plain
+// text for anything unrecorded.
+func (sc *Config) SectionType(sectionTitle string) string {
+	if sc == nil || sc.SectionTypes == nil {
+		return SectionTypeText
+	}
+
+	if sectionType, ok := sc.SectionTypes[sectionTitle]; ok && sectionType != "" {
+		return sectionType
+	}
+
+	return SectionTypeText
+}
+
+// SectionBody renders one section of a member's standup as the reports show it.
+// The kind of input decides the shape: lines are a numbered list, long text is
+// left exactly as it was written so that fenced code blocks, links and inline
+// Markdown survive, and issue IDs are one line, because that is how they are
+// read back.
+func SectionBody(sectionType string, lines []string) string {
+	lines = closeUnbalancedFence(lines)
+
+	switch sectionType {
+	case SectionTypeLongText:
+		return strings.Join(lines, "\n")
+	case SectionTypeIssues:
+		return "**Issues:** " + strings.Join(lines, ", ")
+	default:
+		return "1. " + strings.Join(lines, "\n1. ")
+	}
+}
+
+// closeUnbalancedFence adds the closing fence someone forgot. Without it, one
+// member's unterminated code block turns every heading after it in the report
+// into code, so the damage is not theirs alone.
+func closeUnbalancedFence(lines []string) []string {
+	open := false
+
+	// Every line of every element: work notes are stored as one element holding
+	// the whole text, while a numbered section is one element per line.
+	for _, line := range lines {
+		for _, part := range strings.Split(line, "\n") {
+			if strings.HasPrefix(strings.TrimSpace(part), "```") {
+				open = !open
+			}
+		}
+	}
+
+	if open {
+		return append(lines, "```")
+	}
+
+	return lines
+}
+
 func (sc *Config) ToJSON() string {
 	b, _ := json.Marshal(sc)
 	return string(b)
 }
 
 func (sc *Config) PreSave() error {
+	sc.pruneSectionTypes()
+
 	if err := sc.setStartDateLocation(); err != nil {
 		return err
 	}
@@ -151,6 +222,30 @@ func (sc *Config) PreSave() error {
 
 	sc.fixRRuleTimezone()
 	return nil
+}
+
+// pruneSectionTypes drops types that cannot mean anything: one naming a section
+// that is not there, or one this build does not know. Dropping rather than
+// refusing is deliberate — a stale type cannot be corrected from the modal, and
+// a section falling back to plain text is survivable where a save that will not
+// go through is not.
+func (sc *Config) pruneSectionTypes() {
+	pruned := make(map[string]string, len(sc.SectionTypes))
+
+	for sectionTitle, sectionType := range sc.SectionTypes {
+		if !funk.Contains(sc.Sections, sectionTitle) || !funk.Contains(sectionTypes, sectionType) {
+			continue
+		}
+
+		pruned[sectionTitle] = sectionType
+	}
+
+	if len(pruned) == 0 {
+		sc.SectionTypes = nil
+		return
+	}
+
+	sc.SectionTypes = pruned
 }
 
 // setStartDateLocation sets timezone of start date to

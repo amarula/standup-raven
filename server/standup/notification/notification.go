@@ -654,7 +654,10 @@ func generateTypeAggregatedStandupReport(
 			header := fmt.Sprintf("##### %s %s", util.UserIcon(userStandup.UserID), userDisplayName)
 
 			if userStandup.Standup[sectionTitle] != nil && len(*userStandup.Standup[sectionTitle]) > 0 {
-				userTasks[sectionTitle] += fmt.Sprintf("%s\n1. %s\n", header, strings.Join(*userStandup.Standup[sectionTitle], "\n1. "))
+				// The section's type decides how its lines are shown: numbered
+				// for a question answered in lines, verbatim for work notes.
+				body := standup.SectionBody(standupConfig.SectionType(sectionTitle), *userStandup.Standup[sectionTitle])
+				userTasks[sectionTitle] += fmt.Sprintf("%s\n%s\n", header, body)
 			} else {
 				userNoTasks[sectionTitle] = append(userNoTasks[sectionTitle], userDisplayName)
 			}
@@ -724,7 +727,11 @@ func generateUserAggregatedStandupReport(
 			}
 
 			userTask += fmt.Sprintf("##### %s\n", sectionTitle)
-			userTask += "1. " + strings.Join(*userStandup.Standup[sectionTitle], "\n1. ") + "\n\n"
+
+			// Work notes are shown as they were written, on their own lines
+			// rather than in a numbered list, so that a fenced block or a link
+			// in them survives the report.
+			userTask += standup.SectionBody(standupConfig.SectionType(sectionTitle), *userStandup.Standup[sectionTitle]) + "\n\n"
 		}
 
 		userTasks += userTask
