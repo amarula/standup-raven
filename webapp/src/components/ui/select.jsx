@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import {createPortal} from 'react-dom';
 import ChevronDownIcon from '@mattermost/compass-icons/components/chevron-down';
 import CheckIcon from '@mattermost/compass-icons/components/check';
+import {ModalContext} from './modal';
 
 // The menu is a listbox the popup owns, sized in fixed rows so a long list can
 // be windowed: the timezone field carries 607 entries, and building them all on
@@ -76,6 +77,11 @@ function Select({id, value, options, onChange, searchable = false, disabled = fa
     const triggerRef = React.useRef(null);
     const menuRef = React.useRef(null);
     const typeaheadRef = React.useRef({buffer: '', at: 0});
+
+    // Inside a dialog, the popup belongs to the dialog: portalled to the body
+    // it would be a sibling of the dialog and have to out-rank it numerically,
+    // which is not something a plugin can rely on across server versions.
+    const dialog = React.useContext(ModalContext);
 
     const listID = `${id}-listbox`;
     const selectedIndex = indexOfValue(options, value);
@@ -386,7 +392,7 @@ function Select({id, value, options, onChange, searchable = false, disabled = fa
                         <p className={'standup-select-empty'}>{'No matches'}</p>
                     ) : null}
                 </div>,
-                document.body,
+                dialog || document.body,
             ) : null}
             {searchable && open ? (
                 <span

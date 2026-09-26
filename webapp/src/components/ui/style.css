@@ -151,7 +151,7 @@
 
 .standup-select-menu {
   position: fixed;
-  z-index: var(--z-index-menu, 1000);
+  z-index: var(--z-index-menu, 1150);
   overflow: hidden;
   padding: 4px 0;
   border: 1px solid var(--border-light, rgba(63, 67, 80, 0.08));

@@ -518,6 +518,12 @@ async function main() {
             click(trigger);
             const listbox = document.querySelector('[role="listbox"]');
             check('clicking a select opens its listbox', Boolean(listbox) && trigger.getAttribute('aria-expanded') === 'true');
+
+            // The listbox belongs to the dialog. Portalled anywhere else it would
+            // be the dialog's sibling, and which of the two paints on top would
+            // come down to z-index numbers the host does not always define.
+            check('the listbox is inside the dialog rather than beside it',
+                Boolean(listbox) && document.querySelector('[role="dialog"]').contains(listbox));
             check('the listbox is named by the select', listbox && listbox.getAttribute('aria-label') === null);
             check('the selected option is marked',
                 document.querySelectorAll('[role="option"][aria-selected="true"]').length === 1);

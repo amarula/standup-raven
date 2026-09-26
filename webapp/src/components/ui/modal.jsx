@@ -5,6 +5,14 @@ import CloseIcon from '@mattermost/compass-icons/components/close';
 
 const focusableSelector = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+// Anything that opens a popup inside a dialog portals it here rather than into
+// the body. A dialog and a popup portalled to the body are siblings in the
+// same stacking context, so which one wins is decided by z-index numbers - and
+// the ones Mattermost publishes were not always published: on a server that has
+// no --z-index-menu, a popup falls back to a number below the dialog's and
+// opens behind it, which looks exactly like a menu that never opened.
+export const ModalContext = React.createContext(null);
+
 // Focusable elements inside `container`, skipping anything inside a hidden tab
 // panel. Filtering on the [hidden] attribute rather than on measured geometry
 // is deliberate: it is what a browser enforces anyway, and it is the only thing
@@ -25,6 +33,14 @@ export function focusableWithin(container) {
 function Modal({show, onHide, title, labelledBy, closeLabel = 'Close', className = '', children, footer = null}) {
     const dialogRef = React.useRef(null);
     const restoreFocusRef = React.useRef(null);
+
+    // The dialog element, in state rather than only in a ref, so that popups
+    // rendered by anything inside the modal can be portalled into it.
+    const [dialogElement, setDialogElement] = React.useState(null);
+    const attachDialog = React.useCallback((element) => {
+        dialogRef.current = element;
+        setDialogElement(element);
+    }, []);
 
     React.useEffect(() => {
         if (!show) {
@@ -98,7 +114,7 @@ function Modal({show, onHide, title, labelledBy, closeLabel = 'Close', className
                 aria-modal={'true'}
                 aria-labelledby={labelledBy}
                 tabIndex={-1}
-                ref={dialogRef}
+                ref={attachDialog}
                 onKeyDown={handleKeyDown}
             >
                 <div className={'standup-modal-header'}>
@@ -117,9 +133,11 @@ function Modal({show, onHide, title, labelledBy, closeLabel = 'Close', className
                         <CloseIcon size={20}/>
                     </button>
                 </div>
-                <div className={'standup-modal-body'}>
-                    {children}
-                </div>
+                <ModalContext.Provider value={dialogElement}>
+                    <div className={'standup-modal-body'}>
+                        {children}
+                    </div>
+                </ModalContext.Provider>
                 {footer ? (
                     <div className={'standup-modal-footer'}>
                         {footer}
