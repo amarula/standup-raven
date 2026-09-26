@@ -24,29 +24,3 @@ func upgradeDatabaseToVersion4_1_1(fromVersion string) error {
 func upgradeDatabaseToVersion4_2_0(fromVersion string) error {
 	return updateSchemaVersion(version4_2_0)
 }
-
-// 4.2.1 fixes the web app's error boundary; nothing stored changes shape.
-func upgradeDatabaseToVersion4_2_1(fromVersion string) error {
-	return updateSchemaVersion(version4_2_1)
-}
-
-// 4.2.2 fixes the tab panels in the web app; nothing stored changes shape.
-func upgradeDatabaseToVersion4_2_2(fromVersion string) error {
-	return updateSchemaVersion(version4_2_2)
-}
-
-// 4.2.3 fixes dropdowns opening behind the dialog in the web app.
-func upgradeDatabaseToVersion4_2_3(fromVersion string) error {
-	return updateSchemaVersion(version4_2_3)
-}
-
-// 4.3.0 adds section types, work notes and issue IDs. A section with no type
-// recorded is plain text, so nothing already stored changes shape.
-func upgradeDatabaseToVersion4_3_0(fromVersion string) error {
-	return updateSchemaVersion(version4_3_0)
-}
-
-// 4.4.0 suggests a channel's sections while /standup update is being typed.
-func upgradeDatabaseToVersion4_4_0(fromVersion string) error {
-	return updateSchemaVersion(version4_4_0)
-}
