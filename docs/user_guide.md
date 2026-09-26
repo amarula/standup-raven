@@ -62,4 +62,8 @@ Just follow these steps and you'll be ready in no time.
     sections configured for the channel, ignoring case, and a name that contains spaces can be quoted:
     `/standup update "in progress" waiting on the API`. The command replies with the section as it now reads.
 
+1. **Members who are away** - A standup report marks members whose Mattermost status is *Out Of Office*
+    separately, so they are not listed among those who have not submitted. This can be turned off in the
+    plugin's system console settings.
+
      

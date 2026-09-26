@@ -3830,3 +3830,49 @@ func TestIsStandupDay(t *testing.T) {
 
 	isStandupDay(standupConfig)
 }
+
+func Test_isOutOfOffice(t *testing.T) {
+	defer TearDown()
+	mockAPI := setUp()
+	baseMock(mockAPI)
+
+	mockAPI.On("GetUserStatus", "away_user").Return(&model.Status{UserId: "away_user", Status: model.StatusOutOfOffice}, nil)
+	mockAPI.On("GetUserStatus", "online_user").Return(&model.Status{UserId: "online_user", Status: model.StatusOnline}, nil)
+	mockAPI.On("GetUserStatus", "broken_user").Return(nil, &model.AppError{Message: "couldn't fetch status"})
+
+	cache := map[string]bool{}
+
+	assert.True(t, isOutOfOffice("away_user", cache), "an out of office member is away")
+	assert.False(t, isOutOfOffice("online_user", cache), "an online member is not away")
+	assert.False(t, isOutOfOffice("broken_user", cache), "a member whose status cannot be read is not treated as away")
+
+	// asking again is answered from the cache
+	assert.True(t, isOutOfOffice("away_user", cache))
+	mockAPI.AssertNumberOfCalls(t, "GetUserStatus", 3)
+}
+
+func Test_generateTypeAggregatedStandupReport_ListsOutOfOfficeSeparately(t *testing.T) {
+	defer TearDown()
+	mockAPI := setUp()
+	baseMock(mockAPI)
+
+	mockAPI.On("GetUser", "submitted_user").Return(&model.User{Id: "submitted_user", Username: "carol"}, nil)
+
+	tasks := []string{"shipped the fix"}
+	report, err := generateTypeAggregatedStandupReport(
+		&standup.Config{ChannelID: "channel_id", Sections: []string{"Today"}, Timezone: "Asia/Kolkata"},
+		[]*standup.UserStandup{
+			{UserID: "submitted_user", ChannelID: "channel_id", Standup: map[string]*[]string{"Today": &tasks}},
+		},
+		[]string{"alice"},
+		[]string{"bob"},
+		"channel_id",
+		otime.Now("Asia/Kolkata"),
+	)
+
+	assert.Nil(t, err)
+	if assert.NotNil(t, report) {
+		assert.Contains(t, report.Message, "alice has not submitted their standup")
+		assert.Contains(t, report.Message, "bob is out of office")
+	}
+}

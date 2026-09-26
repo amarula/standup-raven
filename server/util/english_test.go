@@ -21,3 +21,11 @@ func TestSingularPlural(t *testing.T) {
 	assert.Equal(t, "", SingularPlural(-1), "-1 is singular")
 	assert.Equal(t, "s", SingularPlural(-2), "-2 is plural")
 }
+
+func TestIsAre(t *testing.T) {
+	assert.Equal(t, "are", IsAre(0), "0 is plural")
+	assert.Equal(t, "is", IsAre(1), "1 is singular")
+	assert.Equal(t, "are", IsAre(2), "2 is plural")
+	assert.Equal(t, "is", IsAre(-1), "-1 is singular")
+	assert.Equal(t, "are", IsAre(-2), "-2 is plural")
+}

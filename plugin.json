@@ -41,6 +41,13 @@
         "type": "bool",
         "default": true,
         "help_text": "Help improve Standup Raven by sending error reports and diagnostic information. No messages or personal data is stored."
+      },
+      {
+        "key": "respectOutOfOffice",
+        "display_name": "Respect Out Of Office",
+        "type": "bool",
+        "default": true,
+        "help_text": "List members who are marked Out Of Office separately in standup reports, instead of counting them among those who have not submitted."
       }
     ]
   }

@@ -68,6 +68,7 @@ type Configuration struct {
 	PluginVersion           string `json:"plugin_version"`
 	PermissionSchemaEnabled bool   `json:"permissionSchemaEnabled"`
 	EnableErrorReporting    bool   `json:"enableErrorReporting"`
+	RespectOutOfOffice      bool   `json:"respectOutOfOffice"`
 }
 
 func GetConfig() *Configuration {

@@ -128,6 +128,14 @@ func SendStandupReport(channelIDs []string, date otime.OTime, visibility string,
 
 		// names of channel standup members who haven't yet submitted their standup
 		var membersNoStandup []string
+
+		// names of members who are away, who are listed separately rather than
+		// counted among those who have not submitted
+		var membersOutOfOffice []string
+
+		respectOutOfOffice := config.GetConfig() != nil && config.GetConfig().RespectOutOfOffice
+		statusCache := map[string]bool{}
+
 		for _, userID := range standupConfig.Members {
 			userStandup, err := standup.GetUserStandup(userID, channelID, date)
 			if err != nil {
@@ -140,6 +148,12 @@ func SendStandupReport(channelIDs []string, date otime.OTime, visibility string,
 				if appErr != nil {
 					logger.Error("Couldn't fetch user", appErr, map[string]interface{}{"userID": userID})
 					return errors.New(appErr.Error())
+				}
+
+				if respectOutOfOffice && isOutOfOffice(userID, statusCache) {
+					membersOutOfOffice = append(membersOutOfOffice, user.Username)
+
+					continue
 				}
 
 				membersNoStandup = append(membersNoStandup, user.Username)
@@ -159,6 +173,7 @@ func SendStandupReport(channelIDs []string, date otime.OTime, visibility string,
 			standupConfig,
 			members,
 			membersNoStandup,
+			membersOutOfOffice,
 			channelID,
 			date,
 		)
@@ -202,6 +217,7 @@ func generateReport(
 	standupConfig *standup.Config,
 	members []*standup.UserStandup,
 	membersNoStandup []string,
+	membersOutOfOffice []string,
 	channelID string,
 	date otime.OTime,
 ) (*model.Post, error) {
@@ -210,9 +226,9 @@ func generateReport(
 
 	switch standupConfig.ReportFormat {
 	case config.ReportFormatTypeAggregated:
-		post, err = generateTypeAggregatedStandupReport(standupConfig, members, membersNoStandup, channelID, date)
+		post, err = generateTypeAggregatedStandupReport(standupConfig, members, membersNoStandup, membersOutOfOffice, channelID, date)
 	case config.ReportFormatUserAggregated:
-		post, err = generateUserAggregatedStandupReport(standupConfig, members, membersNoStandup, channelID, date)
+		post, err = generateUserAggregatedStandupReport(standupConfig, members, membersNoStandup, membersOutOfOffice, channelID, date)
 	default:
 		err = errors.New("Unknown report format encountered for channel: " + channelID + ", report format: " + standupConfig.ReportFormat)
 		logger.Error("Unknown report format encountered for channel", err, nil)
@@ -223,6 +239,25 @@ func generateReport(
 	}
 
 	return post, err
+}
+
+// isOutOfOffice reports whether a member is away. This uses Mattermost's own Out
+// Of Office status rather than a calendar integration, and caches the answer for
+// the length of a report run so a channel asks about nobody twice.
+func isOutOfOffice(userID string, cache map[string]bool) bool {
+	if away, known := cache[userID]; known {
+		return away
+	}
+
+	status, appErr := config.Mattermost.GetUserStatus(userID)
+	if appErr != nil {
+		logger.Error("Couldn't fetch user status", appErr, map[string]interface{}{"userID": userID})
+	}
+
+	away := appErr == nil && status != nil && status.Status == model.StatusOutOfOffice
+	cache[userID] = away
+
+	return away
 }
 
 func sortUserStandups(userStandups []*standup.UserStandup) ([]*standup.UserStandup, error) {
@@ -532,6 +567,7 @@ func generateTypeAggregatedStandupReport(
 	standupConfig *standup.Config,
 	userStandups []*standup.UserStandup,
 	membersNoStandup []string,
+	membersOutOfOffice []string,
 	channelID string,
 	date otime.OTime,
 ) (*model.Post, error) {
@@ -565,6 +601,10 @@ func generateTypeAggregatedStandupReport(
 			text += fmt.Sprintf("%s %s not submitted their standup.\n", strings.Join(membersNoStandup, ", "), util.HasHave(len(membersNoStandup)))
 		}
 
+		if len(membersOutOfOffice) > 0 {
+			text += fmt.Sprintf("%s %s out of office.\n", strings.Join(membersOutOfOffice, ", "), util.IsAre(len(membersOutOfOffice)))
+		}
+
 		for _, sectionTitle := range standupConfig.Sections {
 			text += "##### ** " + sectionTitle + "**\n\n" + userTasks[sectionTitle] + "\n"
 			if len(userNoTasks[sectionTitle]) > 0 {
@@ -592,6 +632,7 @@ func generateUserAggregatedStandupReport(
 	standupConfig *standup.Config,
 	userStandups []*standup.UserStandup,
 	membersNoStandup []string,
+	membersOutOfOffice []string,
 	channelID string,
 	date otime.OTime,
 ) (*model.Post, error) {
@@ -627,6 +668,10 @@ func generateUserAggregatedStandupReport(
 	if len(userStandups) > 0 {
 		if len(membersNoStandup) > 0 {
 			text += fmt.Sprintf("\n@%s %s not submitted their standup\n\n", strings.Join(membersNoStandup, ", @"), util.HasHave(len(membersNoStandup)))
+		}
+
+		if len(membersOutOfOffice) > 0 {
+			text += fmt.Sprintf("\n@%s %s out of office\n\n", strings.Join(membersOutOfOffice, ", @"), util.IsAre(len(membersOutOfOffice)))
 		}
 
 		text += userTasks
