@@ -207,6 +207,260 @@ async function main() {
             Selectors.standupModalChannel({}) === '');
     }
 
+    console.log("\n[5] The plugin's own controls");
+    {
+        const {UI} = bundle;
+        const {Field, Button, Toggle, Tabs, Modal, Select, TextInput, Alert} = UI;
+
+        const mount = (element) => {
+            const container = document.createElement('div');
+            document.body.appendChild(container);
+            const root = createRoot(container);
+            act(() => root.render(element));
+            return {container, root, unmount: () => act(() => root.unmount())};
+        };
+        const click = (element) => act(() => element.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true, cancelable: true})));
+        const mouseDown = (element) => act(() => element.dispatchEvent(new dom.window.MouseEvent('mousedown', {bubbles: true, cancelable: true})));
+        const pressKey = (element, key, options = {}) => act(() => element.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key, bubbles: true, cancelable: true, ...options})));
+        const type = (input, value) => act(() => setInputValue(dom, input, value));
+
+        // Field
+        {
+            const {container, unmount} = mount(
+                React.createElement(Field, {label: 'Standup Report Format', description: 'How each day is grouped.', htmlFor: 'rf'},
+                    React.createElement(TextInput, {id: 'rf', value: 'x', onChange: () => {}}),
+                ),
+            );
+            const label = container.querySelector('label');
+            const description = container.querySelector('.standup-field-description');
+            check('a field renders its label, description and control in order',
+                Boolean(label) && Boolean(description) && Boolean(container.querySelector('input')) &&
+                container.textContent.indexOf('Standup Report Format') < container.textContent.indexOf('How each day is grouped.'));
+            check('the label points at its control', label && label.getAttribute('for') === 'rf');
+            check('the description is addressable for aria-describedby',
+                Boolean(description) && description.id === UI.descriptionID('rf'));
+            unmount();
+        }
+
+        // Button
+        {
+            let clicks = 0;
+            const {container, unmount} = mount(React.createElement(Button, {onClick: () => clicks++, variant: 'primary'}, 'Save'));
+            click(container.querySelector('button'));
+            check('a button reports its click', clicks === 1);
+            check('a primary button carries one class for its variant',
+                container.querySelector('button').className.indexOf('standup-button-primary') >= 0);
+            unmount();
+        }
+
+        // Toggle
+        {
+            let next = null;
+            const {container, unmount} = mount(
+                React.createElement(Toggle, {id: 'enabled', checked: false, onChange: (value) => {
+                    next = value;
+                }}),
+            );
+            const input = container.querySelector('input');
+            check('a toggle is a real checkbox announced as a switch',
+                input && input.type === 'checkbox' && input.getAttribute('role') === 'switch');
+            check('a toggle reports its state', input.getAttribute('aria-checked') === 'false' || input.checked === false);
+            input.click();
+            check('toggling reports the value it should now have', next === true, `got ${next}`);
+            unmount();
+
+            // With a label of its own, the label is the click target.
+            let fromLabel = null;
+            const labelled = mount(
+                React.createElement(Toggle, {
+                    id: 'ooo',
+                    label: 'Respect out of office',
+                    checked: false,
+                    onChange: (value) => {
+                        fromLabel = value;
+                    },
+                }),
+            );
+            const label = labelled.container.querySelector('label');
+            check('a toggle can carry its own label', Boolean(label) && label.textContent === 'Respect out of office');
+            click(label);
+            check('clicking the label toggles the control', fromLabel === true, `got ${fromLabel}`);
+            labelled.unmount();
+        }
+
+        // Tabs
+        {
+            let active = 'general';
+            const tabs = [
+                {key: 'general', label: 'General', content: React.createElement('p', null, 'general panel')},
+                {key: 'schedule', label: 'Schedule', content: React.createElement('p', null, 'schedule panel')},
+            ];
+            const {container, root, unmount} = mount(
+                React.createElement(Tabs, {id: 'cfg', tabs, activeKey: active, onChange: (key) => {
+                    active = key;
+                    act(() => root.render(React.createElement(Tabs, {id: 'cfg', tabs, activeKey: key, onChange: () => {}})));
+                }}),
+            );
+            const tablist = container.querySelector('[role="tablist"]');
+            const selected = container.querySelector('[role="tab"][aria-selected="true"]');
+            check('tabs are a tablist with one selected tab', Boolean(tablist) && Boolean(selected));
+            check('every tab controls a panel that exists',
+                Array.from(container.querySelectorAll('[role="tab"]')).every((tab) => document.getElementById(tab.getAttribute('aria-controls'))));
+            check('only the selected panel is visible',
+                container.querySelector('#cfg-panel-general').hidden === false &&
+                container.querySelector('#cfg-panel-schedule').hidden === true);
+            pressKey(selected, 'ArrowRight');
+            check('an arrow key selects the next tab',
+                container.querySelector('#cfg-panel-schedule').hidden === false);
+            unmount();
+        }
+
+        // Modal
+        {
+            const opener = document.createElement('button');
+            document.body.appendChild(opener);
+            opener.focus();
+            let hidden = 0;
+            const {container, root, unmount} = mount(
+                React.createElement(Modal, {show: false, onHide: () => hidden++, title: 'Configure', labelledBy: 'cfg-title'}, 'body'),
+            );
+            check('a closed modal renders nothing', container.children.length === 0);
+
+            act(() => root.render(
+                React.createElement(Modal, {show: true, onHide: () => hidden++, title: 'Configure', labelledBy: 'cfg-title'},
+                    React.createElement(Button, null, 'First'),
+                    React.createElement(Button, null, 'Last'),
+                ),
+            ));
+
+            const dialog = document.querySelector('[role="dialog"]');
+            check('an open modal is a labelled dialog',
+                Boolean(dialog) && dialog.getAttribute('aria-modal') === 'true' &&
+                document.getElementById(dialog.getAttribute('aria-labelledby')).textContent === 'Configure');
+            check('the dialog takes focus when it opens', document.activeElement === dialog);
+
+            const buttons = dialog.querySelectorAll('button');
+            const first = buttons[0];
+            const last = buttons[buttons.length - 1];
+            last.focus();
+            pressKey(last, 'Tab');
+            check('Tab from the last control wraps to the first', document.activeElement === first);
+            pressKey(first, 'Tab', {shiftKey: true});
+            check('Shift+Tab from the first wraps to the last', document.activeElement === last);
+
+            pressKey(document.activeElement, 'Escape');
+            check('Escape asks to close', hidden === 1, `got ${hidden}`);
+
+            act(() => root.render(React.createElement(Modal, {show: false, onHide: () => hidden++, title: 'Configure', labelledBy: 'cfg-title'}, 'body')));
+            check('focus goes back to whatever opened the dialog', document.activeElement === opener);
+            unmount();
+        }
+
+        // Select
+        {
+            const options = [
+                {value: 'user_aggregated', label: 'User Aggregated'},
+                {value: 'type_aggregated', label: 'Type Aggregated'},
+                {value: 'none', label: 'None'},
+            ];
+            let picked = null;
+            let modalHides = 0;
+            const {container, root, unmount} = mount(
+                React.createElement(Modal, {show: true, onHide: () => modalHides++, title: 'Configure', labelledBy: 'sel-title'},
+                    React.createElement(Select, {
+                        id: 'report-format',
+                        value: 'user_aggregated',
+                        options,
+                        onChange: (value) => {
+                            picked = value;
+                        },
+                    }),
+                ),
+            );
+
+            // The modal portals its children to the body, so the select lives
+            // there rather than inside the mount container.
+            const trigger = document.querySelector('#report-format');
+            check('a select is a combobox that starts collapsed',
+                trigger && trigger.getAttribute('role') === 'combobox' && trigger.getAttribute('aria-expanded') === 'false');
+            check('a collapsed select renders no options', document.querySelectorAll('[role="option"]').length === 0);
+
+            click(trigger);
+            const listbox = document.querySelector('[role="listbox"]');
+            check('clicking a select opens its listbox', Boolean(listbox) && trigger.getAttribute('aria-expanded') === 'true');
+            check('the listbox is named by the select', listbox && listbox.getAttribute('aria-label') === null);
+            check('the selected option is marked',
+                document.querySelectorAll('[role="option"][aria-selected="true"]').length === 1);
+
+            pressKey(trigger, 'ArrowDown');
+            check('an arrow key marks the option the user is on',
+                trigger.getAttribute('aria-activedescendant') === UI.optionID('report-format-listbox', options[1]),
+                `got ${trigger.getAttribute('aria-activedescendant')}`);
+
+            pressKey(trigger, 'Enter');
+            check('Enter picks the active option', picked === 'type_aggregated', `got ${picked}`);
+            check('picking closes the listbox', document.querySelectorAll('[role="listbox"]').length === 0);
+
+            // Escape inside an open menu must not reach the modal behind it.
+            click(trigger);
+            pressKey(trigger, 'Escape');
+            check('Escape closes the listbox', document.querySelectorAll('[role="listbox"]').length === 0);
+            check('Escape in the listbox does not close the modal', modalHides === 0, `modal hid ${modalHides} times`);
+
+            // Committing with the mouse
+            click(trigger);
+            mouseDown(document.querySelectorAll('[role="option"]')[2]);
+            check('a click on an option picks it', picked === 'none', `got ${picked}`);
+
+            unmount();
+        }
+
+        // Select: searching and the size of the timezone list
+        {
+            const many = [];
+            for (let hour = 0; hour < 24; hour++) {
+                for (let minute = 0; minute < 30; minute++) {
+                    many.push({value: `${hour}:${minute}`, label: `Asia/Kolkata ${hour}:${minute}`});
+                }
+            }
+            const {container, root, unmount} = mount(
+                React.createElement(Select, {
+                    id: 'timezone',
+                    value: '',
+                    options: many,
+                    searchable: true,
+                    onChange: () => {},
+                }),
+            );
+
+            const input = container.querySelector('#timezone');
+            check('a searchable select is an editable combobox',
+                input && input.tagName === 'INPUT' && input.getAttribute('role') === 'combobox' &&
+                input.getAttribute('aria-autocomplete') === 'list');
+
+            click(input);
+            const total = document.querySelectorAll('[role="option"]').length;
+            check('a long list is windowed rather than rendered whole',
+                total > 0 && total < 35, `${total} of ${many.length} options in the DOM`);
+
+            type(input, 'kolkata 3:4');
+            const filtered = document.querySelectorAll('[role="option"]');
+            check('typing filters the list', filtered.length === 1, `${filtered.length} options left`);
+            check('the match is the one that was typed',
+                filtered[0] && filtered[0].textContent.indexOf('3:4') >= 0, filtered[0] && filtered[0].textContent);
+
+            unmount();
+        }
+
+        // Alert
+        {
+            const {container, unmount} = mount(React.createElement(Alert, {variant: 'danger'}, 'Cannot upgrade'));
+            const alert = container.querySelector('.standup-alert');
+            check('a failure is announced as an alert', alert && alert.getAttribute('role') === 'alert');
+            unmount();
+        }
+    }
+
     console.log('');
     if (failures.length) {
         console.log(`FAILED: ${failures.length} check(s): ${failures.join(', ')}`);

@@ -12,5 +12,6 @@ import StartOnDate from '../src/components/reactBootstrapRRuleGenerator/componen
 import {standupModalChannelId} from '../src/reducer/standupModalReducer';
 import Selectors from '../src/selectors';
 import Constants from '../src/constants';
+import * as UI from '../src/components/ui';
 
-export {React, ReactDOMClient, RRule, RRuleGenerator, StartOnDate, standupModalChannelId, Selectors, Constants};
+export {React, ReactDOMClient, RRule, RRuleGenerator, StartOnDate, standupModalChannelId, Selectors, Constants, UI};

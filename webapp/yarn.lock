@@ -1155,6 +1155,11 @@
     "@jridgewell/resolve-uri" "^3.1.0"
     "@jridgewell/sourcemap-codec" "^1.4.14"
 
+"@mattermost/compass-icons@0.1.63":
+  version "0.1.63"
+  resolved "https://registry.yarnpkg.com/@mattermost/compass-icons/-/compass-icons-0.1.63.tgz#b4552bb68b5f64cbf489d6977df1098b2f62cf16"
+  integrity sha512-i2cUJXOnRagZ6r7r+cOXJT/73MebBMgfdHQ+zPBUYFy7ABy1d2K7lyOh75/bhto+5MgK1B38OsVChgn8b5DyUg==
+
 "@nicolo-ribaudo/eslint-scope-5-internals@5.1.1-v1":
   version "5.1.1-v1"
   resolved "https://registry.yarnpkg.com/@nicolo-ribaudo/eslint-scope-5-internals/-/eslint-scope-5-internals-5.1.1-v1.tgz#dbf733a965ca47b1973177dc0bb6c889edcfb129"
