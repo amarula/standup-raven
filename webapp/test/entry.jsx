@@ -7,8 +7,7 @@ import * as React from 'react';
 import * as ReactDOMClient from 'react-dom/client';
 
 import RRule from '../src/components/rRule/rRule.jsx';
-import RRuleGenerator from '../src/components/reactBootstrapRRuleGenerator';
-import StartOnDate from '../src/components/reactBootstrapRRuleGenerator/components/Start/OnDate.jsx';
+import {buildRRuleString, parseRRuleString, DEFAULT_EDITOR_STATE} from '../src/components/rRule/codec';
 import {standupModalChannelId} from '../src/reducer/standupModalReducer';
 import Selectors from '../src/selectors';
 import Constants from '../src/constants';
@@ -21,8 +20,9 @@ export {
     React,
     ReactDOMClient,
     RRule,
-    RRuleGenerator,
-    StartOnDate,
+    buildRRuleString,
+    parseRRuleString,
+    DEFAULT_EDITOR_STATE,
     standupModalChannelId,
     Selectors,
     Constants,

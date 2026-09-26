@@ -399,6 +399,7 @@ class ConfigModal extends (SentryBoundary, React.Component) {
                     startDate={this.state.startDate}
                     rrule={this.state.rruleString}
                     onChange={this.handleRecurrenceChange}
+                    disabled={disabled}
                 />
             </React.Fragment>
         );

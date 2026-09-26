@@ -469,6 +469,82 @@
   color: var(--error-text, #d24b4e);
 }
 
+.standup-radios {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.standup-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.standup-radio-input {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--button-bg, #1c58d9);
+  cursor: pointer;
+}
+
+.standup-radio-input:disabled {
+  cursor: not-allowed;
+}
+
+.standup-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.standup-chip {
+  display: inline-flex;
+  box-sizing: border-box;
+  align-items: center;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border-default, rgba(63, 67, 80, 0.16));
+  border-radius: var(--radius-s, 4px);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 30px;
+}
+
+.standup-chip:hover {
+  background: rgba(var(--center-channel-color-rgb, 63, 67, 80), 0.04);
+}
+
+.standup-chip-on {
+  border-color: var(--button-bg, #1c58d9);
+  background: rgba(var(--button-bg-rgb, 28, 88, 217), 0.08);
+  color: var(--button-bg, #1c58d9);
+  font-weight: 600;
+}
+
+.standup-chip-disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
+.standup-chip-input:focus-visible + .standup-chip-label {
+  text-decoration: underline;
+}
+
+.standup-field-suffix {
+  color: rgba(var(--center-channel-color-rgb, 63, 67, 80), 0.72);
+  font-size: 14px;
+}
+
+.standup-interval {
+  width: 72px;
+}
+
 .standup-visually-hidden {
   position: absolute;
   width: 1px;

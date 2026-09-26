@@ -11,6 +11,10 @@
 // date inputs and checks the rrule they emit.
 process.env.NODE_ENV = 'development';
 
+// Pinned so that the schedules a date is written into are the same on a
+// developer's machine and on the build server.
+process.env.TZ = 'UTC';
+
 const path = require('path');
 const esbuild = require('esbuild');
 const {JSDOM} = require('jsdom');
@@ -42,11 +46,6 @@ function setUpDom() {
         messageHtmlToComponent: (element) => element,
     };
     return dom;
-}
-
-// Local midnight of a YYYY-MM-DD day, as rrule text spells it in UTC.
-function rruleStamp(day) {
-    return new Date(`${day}T00:00:00`).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 }
 
 function setInputValue(dom, input, value) {
@@ -130,52 +129,137 @@ async function main() {
         act(() => root.unmount());
     }
 
-    console.log('\n[3] RRuleGenerator start and end "on date" fields');
+    console.log('\n[3] The recurrence editor');
     {
-        // UNTIL opens the end section in "On date" mode, which is what feeds the
-        // end date field.
-        const container = document.createElement('div');
-        document.body.appendChild(container);
-        const root = createRoot(container);
-        const calls = [];
+        const {buildRRuleString, parseRRuleString, DEFAULT_EDITOR_STATE} = bundle;
+        const editor = (changes) => ({...DEFAULT_EDITOR_STATE, ...changes});
 
-        act(() => {
-            root.render(React.createElement(RRuleGenerator, {
-                config: {repeat: ['Monthly', 'Yearly'], hideStart: false, hideEnd: false},
-                value: 'FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=15;UNTIL=20261231T000000Z',
-                onChange: (value) => calls.push(value),
-            }));
+        // Every string below was produced by the vendored
+        // react-bootstrap-rrule-generator this replaces, for the same choices,
+        // before it was deleted. These are what the server has been storing, so
+        // they are what the new editor has to keep producing.
+        const golden = [
+            ['weekly, the default a new channel gets', editor({}), 'FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,TU,WE,TH,FR'],
+            ['weekly, every day', editor({weeklyDays: ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']}), 'FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,TU,WE,TH,FR,SA,SU'],
+            ['weekly, no day chosen', editor({weeklyDays: []}), 'FREQ=WEEKLY;INTERVAL=1'],
+            ['weekly, weekdays every two weeks', editor({interval: 2}), 'FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,TU,WE,TH,FR'],
+            ['weekly, one day', editor({weeklyDays: ['WE']}), 'FREQ=WEEKLY;INTERVAL=1;BYDAY=WE'],
+            ['weekly, the weekend', editor({weeklyDays: ['SA', 'SU']}), 'FREQ=WEEKLY;INTERVAL=1;BYDAY=SA,SU'],
+            ['weekly, every twelve weeks', editor({interval: 12}), 'FREQ=WEEKLY;INTERVAL=12;BYDAY=MO,TU,WE,TH,FR'],
+            ['monthly, on day 1', editor({frequency: 'Monthly', monthlyMode: 'on', monthlyDay: 1}), 'FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=1'],
+            ['monthly, on day 15', editor({frequency: 'Monthly', monthlyMode: 'on', monthlyDay: 15}), 'FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=15'],
+            ['monthly, on day 31', editor({frequency: 'Monthly', monthlyMode: 'on', monthlyDay: 31}), 'FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=31'],
+            ['monthly, on day 10 every three months', editor({frequency: 'Monthly', monthlyMode: 'on', monthlyDay: 10, interval: 3}), 'FREQ=MONTHLY;INTERVAL=3;BYMONTHDAY=10'],
+            ['monthly, on the first Monday', editor({frequency: 'Monthly', monthlyMode: 'onThe', monthlyTheDay: 'Monday', monthlyWhich: 'First'}), 'FREQ=MONTHLY;INTERVAL=1;BYSETPOS=1;BYDAY=MO'],
+            ['monthly, on the first Wednesday', editor({frequency: 'Monthly', monthlyMode: 'onThe', monthlyTheDay: 'Wednesday', monthlyWhich: 'First'}), 'FREQ=MONTHLY;INTERVAL=1;BYSETPOS=1;BYDAY=WE'],
+            ['monthly, on the first Sunday', editor({frequency: 'Monthly', monthlyMode: 'onThe', monthlyTheDay: 'Sunday', monthlyWhich: 'First'}), 'FREQ=MONTHLY;INTERVAL=1;BYSETPOS=1;BYDAY=SU'],
+            ['monthly, on the first Day', editor({frequency: 'Monthly', monthlyMode: 'onThe', monthlyTheDay: 'Day', monthlyWhich: 'First'}), 'FREQ=MONTHLY;INTERVAL=1;BYSETPOS=1;BYDAY=MO,TU,WE,TH,FR,SA,SU'],
+            ['monthly, on the first Weekday', editor({frequency: 'Monthly', monthlyMode: 'onThe', monthlyTheDay: 'Weekday', monthlyWhich: 'First'}), 'FREQ=MONTHLY;INTERVAL=1;BYSETPOS=1;BYDAY=MO,TU,WE,TH,FR'],
+            ['monthly, on the first Weekend day', editor({frequency: 'Monthly', monthlyMode: 'onThe', monthlyTheDay: 'Weekend day', monthlyWhich: 'First'}), 'FREQ=MONTHLY;INTERVAL=1;BYSETPOS=1;BYDAY=SA,SU'],
+            ['monthly, on the Second Friday', editor({frequency: 'Monthly', monthlyMode: 'onThe', monthlyTheDay: 'Friday', monthlyWhich: 'Second'}), 'FREQ=MONTHLY;INTERVAL=1;BYSETPOS=2;BYDAY=FR'],
+            ['monthly, on the Third Friday', editor({frequency: 'Monthly', monthlyMode: 'onThe', monthlyTheDay: 'Friday', monthlyWhich: 'Third'}), 'FREQ=MONTHLY;INTERVAL=1;BYSETPOS=3;BYDAY=FR'],
+            ['monthly, on the Fourth Friday', editor({frequency: 'Monthly', monthlyMode: 'onThe', monthlyTheDay: 'Friday', monthlyWhich: 'Fourth'}), 'FREQ=MONTHLY;INTERVAL=1;BYSETPOS=4;BYDAY=FR'],
+            ['monthly, on the Last Friday', editor({frequency: 'Monthly', monthlyMode: 'onThe', monthlyTheDay: 'Friday', monthlyWhich: 'Last'}), 'FREQ=MONTHLY;INTERVAL=1;BYSETPOS=-1;BYDAY=FR'],
+        ];
+
+        let differences = 0;
+        golden.forEach(([label, state, expected]) => {
+            const got = buildRRuleString(state);
+            if (got !== expected) {
+                differences++;
+                console.log(`       ${label}: the old editor produced ${expected}, this one produces ${got}`);
+            }
         });
+        check(`all ${golden.length} schedules come out exactly as the old editor wrote them`, differences === 0);
 
-        const startInput = container.querySelector('input[name="start.onDate.date"]');
-        const endInput = container.querySelector('input[name="end.onDate.date"]');
-        check('renders the start on-date input', Boolean(startInput));
-        check('renders the end on-date input', Boolean(endInput));
+        // Reading a stored rule back has to land on the same choices, or opening
+        // the modal and saving it would rewrite someone's schedule.
+        let roundTrips = 0;
+        golden.forEach(([label, state, expected]) => {
+            const read = parseRRuleString(DEFAULT_EDITOR_STATE, expected);
+            if (buildRRuleString(read) !== expected) {
+                roundTrips++;
+                console.log(`       ${label}: came back as ${buildRRuleString(read)}`);
+            }
+        });
+        check('every stored schedule reads back unchanged', roundTrips === 0);
 
-        if (startInput) {
-            check('start input shows the date it was given', startInput.value.length === 10,
-                `value was ${startInput.value}`);
+        const withEnd = parseRRuleString(DEFAULT_EDITOR_STATE, 'FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=15;UNTIL=20261231T000000Z');
+        check('a stored end date survives the editor', withEnd.end.mode === 'On date' && withEnd.end.onDate === '2026-12-31',
+            JSON.stringify(withEnd.end));
+        check('and is written back the same way',
+            buildRRuleString(withEnd) === 'FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=15;UNTIL=20261231T000000Z',
+            buildRRuleString(withEnd));
 
-            const before = calls.length;
-            act(() => setInputValue(dom, startInput, '2026-11-03'));
-            check('start input is wired to the generator', calls.length > before);
+        const broken = parseRRuleString(DEFAULT_EDITOR_STATE, 'FREQ=NONSENSE');
+        check('a schedule that cannot be read says so instead of throwing', Boolean(broken.error));
 
-            const emitted = calls[calls.length - 1] || '';
-            check('picking a start date moves DTSTART to that date',
-                emitted.includes(`DTSTART:${rruleStamp('2026-11-03')}`), `emitted ${JSON.stringify(emitted)}`);
+        // A channel with no schedule yet: the modal has to end up with one.
+        {
+            const container = document.createElement('div');
+            document.body.appendChild(container);
+            const root = createRoot(container);
+            const calls = [];
+
+            act(() => {
+                root.render(React.createElement(RRule, {
+                    rrule: '',
+                    startDate: '2026-09-26T00:00:00.000Z',
+                    onChange: (rrule, startDate) => calls.push({rrule, startDate}),
+                }));
+            });
+
+            check('mounting a channel with no schedule reports one',
+                calls.length === 1 && calls[0].rrule === 'FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,TU,WE,TH,FR',
+                JSON.stringify(calls[0]));
+            check('and reports the start date it was given',
+                calls[0] && calls[0].startDate === '2026-09-26T00:00:00.000Z');
+
+            act(() => root.unmount());
         }
 
-        if (endInput) {
-            const before = calls.length;
-            act(() => setInputValue(dom, endInput, '2027-02-14'));
-            check('end input is wired to the generator', calls.length > before);
+        // The editor itself: the controls are the kit's, and they swap with the
+        // frequency rather than showing a weekly row under a monthly rule.
+        {
+            const container = document.createElement('div');
+            document.body.appendChild(container);
+            const root = createRoot(container);
+            const calls = [];
 
-            const emitted = calls[calls.length - 1] || '';
-            check('picking an end date moves UNTIL to that date',
-                emitted.includes(`UNTIL=${rruleStamp('2027-02-14')}`), `emitted ${JSON.stringify(emitted)}`);
+            act(() => {
+                root.render(React.createElement(RRule, {
+                    rrule: 'FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=15',
+                    startDate: '2026-09-26T00:00:00.000Z',
+                    onChange: (rrule, startDate) => calls.push({rrule, startDate}),
+                }));
+            });
+
+            check('a monthly schedule shows the monthly controls',
+                Boolean(container.querySelector('#standup-recurrence-monthly-day')) &&
+                container.querySelector('#standup-recurrence-days') === null);
+            check('the day it falls on is the stored one',
+                container.querySelector('#standup-recurrence-monthly-day').textContent === '15');
+
+            const frequency = container.querySelector('#standup-recurrence-frequency');
+            act(() => frequency.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true, cancelable: true})));
+            act(() => frequency.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'ArrowDown', bubbles: true, cancelable: true})));
+            act(() => frequency.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'Enter', bubbles: true, cancelable: true})));
+
+            check('choosing weekly swaps in the weekday chips',
+                Boolean(container.querySelector('#standup-recurrence-days')) &&
+                container.querySelector('#standup-recurrence-monthly-day') === null,
+                container.querySelector('#standup-recurrence-days') ? 'chips shown' : 'no chips');
+
+            // Weekdays are on by default, so unticking Monday leaves the rest.
+            const monday = container.querySelector('#standup-recurrence-days-MO');
+            check('the weekday chips start on the default weekdays', monday.checked);
+            act(() => monday.click());
+            check('unticking a day reports the new rule',
+                calls[calls.length - 1].rrule === 'FREQ=WEEKLY;INTERVAL=1;BYDAY=TU,WE,TH,FR',
+                calls[calls.length - 1].rrule);
+
+            act(() => root.unmount());
         }
-
-        act(() => root.unmount());
     }
 
     console.log('\n[4] The modal opens for the channel a prompt asked for');
@@ -575,8 +659,21 @@ async function main() {
             {
                 const dialog = document.querySelector('[role="dialog"]');
                 check('opening it loads the saved configuration', Boolean(dialog));
-                check('every setting is a labelled row', document.querySelectorAll('.standup-field').length === 8,
-                    `${document.querySelectorAll('.standup-field').length} rows`);
+                const controls = [
+                    'standup-config-enabled',
+                    'standup-config-schedule-enabled',
+                    'standup-config-report-format',
+                    'standup-config-window-open-reminder',
+                    'standup-config-window-close-reminder',
+                    'window-start-time-hours',
+                    'standup-config-timezone',
+                ];
+                const unlabelled = controls.filter((controlID) => {
+                    const control = document.querySelector(`#${controlID}`);
+                    return !control || !document.querySelector(`label[for="${controlID}"]`);
+                });
+                check('every setting is there, and every one of them is labelled', unlabelled.length === 0,
+                    `missing or unlabelled: ${unlabelled.join(', ')}`);
                 check('the saved report format is what the select shows',
                     document.querySelector('#standup-config-report-format').textContent.indexOf('Type Aggregated') >= 0);
                 check('the saved timezone is what the field shows',
