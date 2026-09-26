@@ -14,6 +14,8 @@ import Constants from '../src/constants';
 import * as UI from '../src/components/ui';
 import ConfigModal from '../src/components/configModal/configModal.jsx';
 import {buildStandupConfigPayload} from '../src/components/configModal/payload';
+import StandupModal from '../src/components/standupModal/standupModal.jsx';
+import {buildUserStandupPayload} from '../src/components/standupModal/payload';
 import TimePicker from '../src/components/timePicker/timePicker.jsx';
 
 export {
@@ -29,5 +31,7 @@ export {
     UI,
     ConfigModal,
     buildStandupConfigPayload,
+    StandupModal,
+    buildUserStandupPayload,
     TimePicker,
 };

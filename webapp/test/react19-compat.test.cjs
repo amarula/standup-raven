@@ -30,8 +30,8 @@ function check(name, condition, detail) {
 }
 
 // The host provides these as globals; the plugin's webpack config points its
-// externals at them. react-bootstrap is stubbed (see host-react-bootstrap.cjs),
-// the rest are the real packages.
+// externals at them. superagent is stubbed (see host-superagent.cjs) so the
+// modals can be driven without a server; the rest are the real packages.
 function setUpDom() {
     const dom = new JSDOM('<!doctype html><body><div id="root"></div></body>', {url: 'http://localhost/'});
     global.window = dom.window;
@@ -40,11 +40,13 @@ function setUpDom() {
     global.HTMLElement = dom.window.HTMLElement;
     global.Element = dom.window.Element;
     global.IS_REACT_ACT_ENVIRONMENT = true;
-    global.ReactBootstrap = require('./host-react-bootstrap.cjs');
-    global.PostUtils = {
+    // The web app exposes these on window, and the plugin reads them there.
+    const postUtils = {
         formatText: (text) => text,
         messageHtmlToComponent: (element) => element,
     };
+    global.PostUtils = postUtils;
+    dom.window.PostUtils = postUtils;
     return dom;
 }
 
@@ -72,7 +74,6 @@ async function buildBundle() {
             react: 'react19',
             'react-dom': 'react-dom19',
             'react-dom/client': 'react-dom19/client',
-            'react-bootstrap': path.join(__dirname, 'host-react-bootstrap.cjs'),
             superagent: path.join(__dirname, 'host-superagent.cjs'),
         },
         jsx: 'transform',
@@ -84,7 +85,7 @@ async function buildBundle() {
 async function main() {
     const dom = setUpDom();
     const bundle = require(await buildBundle());
-    const {React, ReactDOMClient, RRule, RRuleGenerator} = bundle;
+    const {React, ReactDOMClient, RRule} = bundle;
     const {act} = React;
     const {createRoot} = ReactDOMClient;
 
@@ -705,6 +706,118 @@ async function main() {
 
                 act(() => root.unmount());
             }
+        }
+    }
+
+    console.log('\n[7] The fill-in standup modal');
+    {
+        const {StandupModal, buildUserStandupPayload} = bundle;
+        const stub = global.__superagentStub;
+
+        check('blank lines are not submitted',
+            JSON.stringify(buildUserStandupPayload({standup: {Today: {line1: ' did a thing ', line2: '   ', line3: 'and another'}}}, 'channel_id')) ===
+            JSON.stringify({channelId: 'channel_id', standup: {Today: ['did a thing', 'and another']}}),
+            JSON.stringify(buildUserStandupPayload({standup: {Today: {line1: ' did a thing '}}}, 'channel_id')));
+
+        const open = async (config, filled) => {
+            stub.reset();
+            stub.queue({ok: true, status: 200, body: config});
+            stub.queue({ok: true, status: 200, body: {standup: filled}});
+
+            const container = document.createElement('div');
+            document.body.appendChild(container);
+            const root = createRoot(container);
+            const render = (visible) => act(() => root.render(React.createElement(StandupModal, {
+                channelID: 'channel_id',
+                currentUserId: 'user_one',
+                visible,
+                close: () => {},
+                siteURL: 'https://mm.example.com',
+                isGuest: false,
+            })));
+
+            render(false);
+            render(true);
+            await act(async () => {
+                await Promise.resolve();
+                await Promise.resolve();
+                await Promise.resolve();
+            });
+
+            return {container, root};
+        };
+
+        const channelConfig = {
+            enabled: true,
+            members: ['user_one', 'user_two'],
+            sections: ['Today', 'Tomorrow'],
+        };
+
+        {
+            const {container, root} = await open(channelConfig, {Today: ['what I did']});
+
+            const lines = document.querySelectorAll('.standup-modal-line');
+            check('the modal opens on the first section', document.querySelector('.standup-modal-section').textContent === 'Today');
+            check('what was filed earlier today comes back', lines[0] && lines[0].value === 'what I did', lines[0] && lines[0].value);
+            check('with an empty row after it to type into', lines.length === 2, `${lines.length} rows`);
+
+            const submit = Array.from(document.querySelectorAll('button')).filter((button) => button.textContent === 'Submit')[0];
+            check('submit waits for the last section', submit.disabled === true);
+            check('and says why', document.body.textContent.indexOf('Move to the last section') >= 0);
+
+            const next = document.querySelector('[aria-label="Next section"]');
+            act(() => next.click());
+            check('the arrow moves to the next section', document.querySelector('.standup-modal-section').textContent === 'Tomorrow');
+            check('submit is available on the last section', submit.disabled === false);
+
+            const previous = document.querySelector('[aria-label="Previous section"]');
+            check('the previous arrow is available here', previous.disabled === false);
+            act(() => previous.click());
+            check('and goes back', document.querySelector('.standup-modal-section').textContent === 'Today');
+
+            act(() => next.click());
+            const line = document.querySelectorAll('.standup-modal-line')[0];
+            act(() => {
+                const setter = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value').set;
+                setter.call(line, 'something for tomorrow');
+                line.dispatchEvent(new dom.window.Event('input', {bubbles: true}));
+            });
+            act(() => submit.click());
+
+            const post = stub.requests.filter((request) => request.method === 'post')[0];
+            check('submitting posts the standup for this channel',
+                Boolean(post) && post.url === 'https://mm.example.com/plugins/standup-raven/standup?channel_id=channel_id',
+                post && post.url);
+            check('only the sections with something in them are sent',
+                Boolean(post) && JSON.stringify(post.body) === JSON.stringify({
+                    channelId: 'channel_id',
+                    standup: {Today: ['what I did'], Tomorrow: ['something for tomorrow']},
+                }),
+                post && JSON.stringify(post.body));
+
+            act(() => root.unmount());
+        }
+
+        // Someone who is not on the standup is told so rather than shown a form
+        // whose submit would be refused.
+        {
+            const {container, root} = await open({...channelConfig, members: ['user_two']}, {});
+
+            check('a member who is not on the standup is told',
+                document.body.textContent.indexOf('You are not a part of this channel\'s standup.') >= 0);
+            check('and no form is shown', document.querySelectorAll('.standup-modal-line').length === 0);
+
+            act(() => root.unmount());
+        }
+
+        // A channel with the standup switched off.
+        {
+            const {container, root} = await open({...channelConfig, enabled: false}, {});
+
+            check('a disabled standup says so',
+                document.body.textContent.indexOf('Standup is disabled for this channel.') >= 0);
+
+            act(() => root.unmount());
         }
     }
 

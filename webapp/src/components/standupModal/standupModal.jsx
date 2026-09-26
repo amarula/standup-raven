@@ -1,31 +1,28 @@
-import React from 'react';
+import * as React from 'react';
 import PropTypes from 'prop-types';
-import {Alert, Button, FormControl, FormGroup, InputGroup, Modal, OverlayTrigger, Tooltip} from 'react-bootstrap';
 import request from 'superagent';
-import Constants from '../../constants';
-import reactStyles from './style';
-import './style.css';
-import SentryBoundary from '../../SentryBoundary';
 import * as HttpStatus from 'http-status-codes';
 import Cookies from 'js-cookie';
+import ChevronLeftIcon from '@mattermost/compass-icons/components/chevron-left';
+import ChevronRightIcon from '@mattermost/compass-icons/components/chevron-right';
+
+import Constants from '../../constants';
+import {Alert, Button, Modal, TextInput} from '../ui';
+import {buildUserStandupPayload} from './payload';
+import SentryBoundary from '../../SentryBoundary';
+import './style.css';
 
 const {formatText, messageHtmlToComponent} = window.PostUtils;
 
 const standupModalCloseTimeout = 1000;
-const standupTaskDefaultRowCount = 5;
 
+// `(SentryBoundary, React.Component)` is the comma operator: it evaluates to
+// React.Component and discards the boundary, so nothing here catches errors.
+// Left exactly as it was rather than changed under cover of a UI rewrite.
 class StandupModal extends (SentryBoundary, React.Component) {
     constructor(props) {
         super(props);
         this.state = StandupModal.getInitialState();
-    }
-
-    static get MODAL_CLOSE_TIMEOUT() {
-        return standupModalCloseTimeout;
-    }
-
-    static get STANDUP_TASKS_DEFAULT_ROW_COUNT() {
-        return standupTaskDefaultRowCount;
     }
 
     static getInitialState() {
@@ -39,46 +36,94 @@ class StandupModal extends (SentryBoundary, React.Component) {
             },
             showSpinner: true,
             standupConfig: undefined,
-            standupError: false,
-            showStandupError: false,
-            standupErrorMessage: '',
-            standupErrorSubMessage: '',
         };
     }
 
-    handleTasks = (key, e) => {
-        const standup = {...this.state.standup};
-        standup[key][e.target.name] = e.target.value;
-        this.setState({
-            standup,
+    componentDidUpdate(prevProp) {
+        if (this.props.visible && !prevProp.visible) {
+            this.getStandupConfig().
+                then(this.getUserStandup).
+                then(() => {
+                    this.setState({showSpinner: false});
+                }).
+                catch(() => {
+                    this.setState({showSpinner: false});
+                });
+        }
+    }
+
+    getStandupConfig = () => {
+        return new Promise((resolve) => {
+            const url = `${this.props.siteURL}/${Constants.URL_STANDUP_CONFIG}?channel_id=${this.props.channelID}`;
+            request
+                .get(url)
+                .withCredentials()
+                .end((err, result) => {
+                    if (result.ok) {
+                        const standup = {};
+                        result.body.sections.forEach((section) => {
+                            standup[section] = {};
+                        });
+
+                        this.setState({
+                            standupConfig: result.body,
+                            activeTab: result.body.sections[0],
+                            standup,
+                        });
+                    } else if (result.status !== HttpStatus.NOT_FOUND) {
+                        console.error(err);
+                    }
+                    resolve();
+                });
         });
+    };
+
+    getUserStandup = () => {
+        return new Promise((resolve) => {
+            request
+                .get(`${this.props.siteURL}/${Constants.URL_SUBMIT_USER_STANDUP}?channel_id=${this.props.channelID}`)
+                .withCredentials()
+                .end((err, result) => {
+                    if (result.ok) {
+                        // Whatever was filed earlier today comes back as the
+                        // starting point, so a member can add to it.
+                        const standup = {...this.state.standup};
+                        for (const sectionTitle of Object.keys(result.body.standup)) {
+                            if (!standup[sectionTitle]) {
+                                continue;
+                            }
+
+                            result.body.standup[sectionTitle].forEach((line, index) => {
+                                standup[sectionTitle][`line${index + 1}`] = line;
+                            });
+                        }
+                        this.setState({standup});
+                    } else if (result.status !== HttpStatus.NOT_FOUND) {
+                        console.error(err);
+                    }
+                    resolve();
+                });
+        });
+    };
+
+    handleTasks = (sectionTitle, event) => {
+        const standup = {...this.state.standup};
+        standup[sectionTitle] = {...standup[sectionTitle], [event.target.name]: event.target.value};
+        this.setState({standup});
     };
 
     handleClose = () => {
-        this.setState(StandupModal.getInitialState);
+        this.setState(StandupModal.getInitialState());
         this.props.close();
-    };
-
-    switchTabs = (direction) => {
-        // this can be optimized by storing index rather than label in state variable
-        const i = this.state.standupConfig.sections.indexOf(this.state.activeTab);
-        const nextTab = this.state.standupConfig.sections[i + 1] || this.state.activeTab;
-        const prevTab = this.state.standupConfig.sections[i - 1] || this.state.activeTab;
-
-        this.setState({
-            activeTab: direction === 'forward' ? nextTab : prevTab,
-        });
     };
 
     handleSubmit = (event) => {
         event.preventDefault();
 
-        const payload = this.prepareUserStandup();
-
         request
             .post(`${this.props.siteURL}/${Constants.URL_SUBMIT_USER_STANDUP}?channel_id=${this.props.channelID}`)
             .withCredentials()
-            .send(payload)
+            .send(buildUserStandupPayload(this.state, this.props.channelID))
             .set('X-CSRF-Token', Cookies.get(Constants.MATTERMOST_CSRF_COOKIE))
             .set('Content-Type', 'application/json')
             .end((err, res) => {
@@ -86,7 +131,7 @@ class StandupModal extends (SentryBoundary, React.Component) {
                     this.setState({
                         message: {
                             show: true,
-                            text: 'An error occurred while submitting standup.\n' + err.response.text,
+                            text: `An error occurred while submitting standup.\n${err.response.text}`,
                             type: 'danger',
                         },
                     });
@@ -98,258 +143,181 @@ class StandupModal extends (SentryBoundary, React.Component) {
                             type: 'success',
                         },
                     });
-                    setTimeout(this.handleClose, StandupModal.MODAL_CLOSE_TIMEOUT);
+                    setTimeout(this.handleClose, standupModalCloseTimeout);
                 }
             });
     };
 
-    getUserStandup = () => {
-        return new Promise((resolve) => {
-            request
-                .get(`${this.props.siteURL}/${Constants.URL_SUBMIT_USER_STANDUP}?channel_id=${this.props.channelID}`)
-                .withCredentials()
-                .end((err, result) => {
-                    if (result.ok) {
-                        for (const sectionTitle of Object.keys(result.body.standup)) {
-                            if (this.state.standup[sectionTitle]) {
-                                for (let i = 0; i < result.body.standup[sectionTitle].length; ++i) {
-                                    this.state.standup[sectionTitle][`line${i + 1}`] = result.body.standup[sectionTitle][i];
-                                }
-                            }
-                        }
-                    } else if (result.status !== HttpStatus.NOT_FOUND) {
-                        console.error(err);
-                    }
-                    resolve();
-                });
-        });
-    };
+    switchTabs = (direction) => {
+        const sections = this.state.standupConfig.sections;
+        const index = sections.indexOf(this.state.activeTab);
+        const next = direction === 'forward' ? sections[index + 1] : sections[index - 1];
 
-    getStandupConfig = () => {
-        return new Promise((resolve) => {
-            const url = `${this.props.siteURL}/${Constants.URL_STANDUP_CONFIG}?channel_id=${this.props.channelID}`;
-            request
-                .get(url)
-                .withCredentials()
-                .end((err, result) => {
-                    if (result.ok) {
-                        const state = {
-                            standupConfig: result.body,
-                            activeTab: result.body.sections[0],
-                            standup: {},
-                        };
-
-                        result.body.sections.forEach((x) => {
-                            state.standup[x] = {};
-                        });
-                        this.setState(state);
-                    } else if (result.status !== HttpStatus.NOT_FOUND) {
-                        console.error(err);
-                    }
-                    resolve();
-                });
-        });
-    };
-
-    prepareUserStandup = () => {
-        const standup = {
-            channelId: this.props.channelID,
-            standup: {},
-        };
-
-        for (const sectionTitle of Object.keys(this.state.standup)) {
-            standup.standup[sectionTitle] = Object.values(this.state.standup[sectionTitle])
-                .map((x) => x.trim())
-                .filter((x) => x !== '');
+        if (next) {
+            this.setState({activeTab: next});
         }
-
-        return standup;
     };
 
-    componentDidUpdate(prevProp) {
-        if (this.props.visible && !prevProp.visible) {
-            this.getStandupConfig()
-                .then(this.getUserStandup)
-                .then(() => {
-                    this.setState({showSpinner: false});
-                })
-                .catch(() => {
-                    this.setState({showSpinner: false});
-                });
-        }
-    }
-
-    insertRows = (count, className, onChange) => {
+    // One row more than there is anything to say, so there is always somewhere
+    // to type the next line.
+    renderRows(sectionTitle) {
+        const lines = this.state.standup[sectionTitle] || {};
         const rows = [];
 
-        for (let i = 0; i <= Object.keys(this.state.standup[className] || {}).length; ++i) {
+        for (let i = 0; i <= Object.keys(lines).length; ++i) {
+            const name = `line${i + 1}`;
+
             rows.push(
-                <FormGroup key={i.toString()}>
-                    <InputGroup>
-                        <InputGroup.Addon>{(i + 1) + '.'}</InputGroup.Addon>
-                        <FormControl
-                            type='text'
-                            onChange={onChange}
-                            name={'line' + (i + 1)}
-                            className={className}
-                            value={this.state.standup[className] ? (this.state.standup[className][`line${i + 1}`] || '') : ''}
-                        />
-                        <FormControl.Feedback/>
-                    </InputGroup>
-                </FormGroup>,
+                <TextInput
+                    key={name}
+                    id={`standup-${sectionTitle}-${name}`}
+                    name={name}
+                    prefix={`${i + 1}.`}
+                    value={lines[name] || ''}
+                    onChange={(event) => this.handleTasks(sectionTitle, event)}
+                    ariaLabel={`${sectionTitle} line ${i + 1}`}
+                    className={'standup-modal-line'}
+                />,
             );
         }
 
         return rows;
-    };
+    }
+
+    renderError() {
+        const config = this.state.standupConfig;
+
+        if (!config) {
+            return [
+                'Standup is not configured for this channel.',
+                'Make sure you are filling the standup in the right channel or that standup has been configured in this channel.',
+            ];
+        }
+
+        if (!config.enabled) {
+            return [
+                'Standup is disabled for this channel.',
+                'Please enable standup to continue using the features.',
+            ];
+        }
+
+        if (!config.members || config.members.length === 0) {
+            return [
+                'No members configured for this channel\'s standup.',
+                'Please add some members to the standup to continue using the features.',
+            ];
+        }
+
+        if (config.members.indexOf(this.props.currentUserId) < 0) {
+            return [
+                'You are not a part of this channel\'s standup.',
+                'Make sure you are filling standup in the right channel or that you were correctly added to the channel\'s standup.',
+            ];
+        }
+
+        if (this.props.isGuest) {
+            return [
+                'You are not allowed to submit standup.',
+                'Guest users are not allowed to submit standup.',
+            ];
+        }
+
+        return null;
+    }
 
     render() {
-        const style = reactStyles.getStyle();
+        const {standupConfig, activeTab, showSpinner} = this.state;
+        const error = this.renderError();
+        const showForm = !error && standupConfig !== undefined;
 
-        let showStandupError = false;
-        let standupErrorMessage = '';
-        let standupErrorSubMessage = '';
+        const sections = standupConfig ? standupConfig.sections : [];
+        const firstSection = sections[0];
+        const lastSection = sections[sections.length - 1];
+        const onLastSection = activeTab === lastSection;
 
-        if (!this.state.standupConfig) {
-            showStandupError = true;
-            standupErrorMessage = 'Standup is not configured for this channel.';
-            standupErrorSubMessage = 'Make sure you are filling the standup in the right channel or that standup has been configured in this channel.';
-        } else if (!this.state.standupConfig.enabled) {
-            showStandupError = true;
-            standupErrorMessage = 'Standup is disabled for this channel.';
-            standupErrorSubMessage = 'Please enable standup to continue using the features.';
-        } else if (!this.state.standupConfig.members || this.state.standupConfig.members.length === 0) {
-            showStandupError = true;
-            standupErrorMessage = 'No members configured for this channel\'s standup.';
-            standupErrorSubMessage = 'Please add some members to the standup to continue using the features.';
-        } else if (this.state.standupConfig.members.indexOf(this.props.currentUserId) < 0) {
-            showStandupError = true;
-            standupErrorMessage = 'You are not a part of this channel\'s standup.';
-            standupErrorSubMessage = 'Make sure you are filling standup in the right channel or that you were correctly added to the channel\'s standup.';
-        } else if (this.props.isGuest) {
-            showStandupError = true;
-            standupErrorMessage = 'You are not allowed to submit standup.';
-            standupErrorSubMessage = 'Guest users are not allowed to submit standup.';
-        }
-
-        const showSpinner = this.state.showSpinner;
-        const showStandupForm = !showStandupError && this.state.standupConfig !== undefined;
-
-        const sections = [];
-        if (this.state.standupConfig && this.state.standupConfig.sections) {
-            for (let i = 0; i < this.state.standupConfig.sections.length; ++i) {
-                const sectionTitle = this.state.standupConfig.sections[i];
-                sections.push(
-                    <div
-                        key={i.toString()}
-                        id={sectionTitle}
-                        className={this.state.activeTab === sectionTitle ? '' : 'hidden'}
+        let footer = null;
+        if (showForm) {
+            footer = (
+                <React.Fragment>
+                    <Button
+                        variant={'tertiary'}
+                        onClick={this.handleClose}
                     >
-                        {this.insertRows(StandupModal.STANDUP_TASKS_DEFAULT_ROW_COUNT, sectionTitle, (e) => {
-                            this.handleTasks(sectionTitle, e);
-                        })}
-                    </div>,
-                );
-            }
+                        {'Cancel'}
+                    </Button>
+                    <Button
+                        variant={'primary'}
+                        onClick={this.handleSubmit}
+                        disabled={!onLastSection}
+                    >
+                        {'Submit'}
+                    </Button>
+                </React.Fragment>
+            );
         }
-
-        const firstTab = this.state.standupConfig ? this.state.standupConfig.sections[0] : '';
-        const lastTab = this.state.standupConfig ? this.state.standupConfig.sections[this.state.standupConfig.sections.length - 1] : '';
 
         return (
             <Modal
                 show={this.props.visible}
                 onHide={this.handleClose}
-                backdrop={'static'}
+                title={Constants.PLUGIN_DISPLAY_NAME}
+                labelledBy={'standup-modal-title'}
+                footer={footer}
             >
-
-                <Modal.Header closeButton={true}>
-                    <Modal.Title>
-                        {Constants.PLUGIN_DISPLAY_NAME}
-                    </Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <div
-                        className={showSpinner ? '' : 'hidden'}
-                        style={style.spinner}
-                    >
+                {showSpinner ? (
+                    <div className={'standup-modal-spinner'}>
                         <img
                             src={`${this.props.siteURL}/${Constants.URL_SPINNER_ICON}`}
                             alt={'loading...'}
                         />
                     </div>
+                ) : null}
 
-                    <span className={showSpinner ? 'hidden' : ''}>
-                        <span className={showStandupError ? '' : 'hidden'}>
-                            <span style={style.standupErrorMessage}>{standupErrorMessage}</span>
-                            <br/><br/>
-                            <span>{standupErrorSubMessage}</span>
-                        </span>
+                {!showSpinner && error ? (
+                    <div className={'standup-modal-error'}>
+                        <p className={'standup-modal-error-message'}>{error[0]}</p>
+                        <p>{error[1]}</p>
+                    </div>
+                ) : null}
 
-                        <span className={showStandupForm ? '' : 'hidden'}>
-                            <h5 style={style.header}>{messageHtmlToComponent(formatText(this.state.activeTab))}</h5>
-                            <form style={style.form}>
-                                <div className={'formContainer'}>
-                                    {sections}
-                                </div>
-                            </form>
+                {!showSpinner && showForm ? (
+                    <React.Fragment>
+                        {this.state.message.show ? (
+                            <Alert variant={this.state.message.type}>
+                                {this.state.message.text}
+                            </Alert>
+                        ) : null}
+                        <h2 className={'standup-modal-section'}>
+                            {messageHtmlToComponent(formatText(activeTab))}
+                        </h2>
+                        <div className={'standup-modal-lines'}>
+                            {this.renderRows(activeTab)}
+                        </div>
+                        <div className={'standup-modal-nav'}>
                             <Button
-                                bsStyle='primary'
-                                className={'fa fa-chevron-left'}
+                                variant={'primary'}
                                 onClick={() => this.switchTabs('backward')}
-                                disabled={this.state.activeTab === firstTab}
-                                style={style.controlBtns}
-                            />
-                            <Button
-                                bsStyle='primary'
-                                className={'fa fa-chevron-right'}
-                                onClick={() => this.switchTabs('forward')}
-                                disabled={this.state.activeTab === lastTab}
-                                style={style.controlBtns}
-                            />
-                        </span>
-                    </span>
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button
-                        type='button'
-                        onClick={this.handleClose}
-                        bsStyle='link'
-                    >
-                        {'Cancel'}
-                    </Button>
-                    <OverlayTrigger
-                        placement={'bottom'}
-                        overlay={
-                            <Tooltip
-                                id={'standup-submit-btn-tooltip'}
-                                className={this.state.activeTab === lastTab ? 'hidden' : ''}
+                                disabled={activeTab === firstSection}
+                                ariaLabel={'Previous section'}
                             >
-                                <strong>
-                                    {'navigate to last tab to submit'}
-                                </strong>
-                            </Tooltip>
-                        }
-                    >
-                        <Button
-                            className={showStandupForm ? '' : 'hidden'}
-                            type='submit'
-                            bsStyle='primary'
-                            onClick={this.handleSubmit}
-                            disabled={this.state.activeTab !== lastTab}
-                        >
-                            {'Submit'}
-                        </Button>
-                    </OverlayTrigger>
-                </Modal.Footer>
-                <Alert
-                    bsStyle={this.state.message.type}
-                    style={style.alert}
-                    className={(this.state.message.show ? '' : 'hidden')}
-                >
-                    {this.state.message.text}
-                </Alert>
-
+                                <ChevronLeftIcon size={20}/>
+                            </Button>
+                            <Button
+                                variant={'primary'}
+                                onClick={() => this.switchTabs('forward')}
+                                disabled={onLastSection}
+                                ariaLabel={'Next section'}
+                            >
+                                <ChevronRightIcon size={20}/>
+                            </Button>
+                            {!onLastSection ? (
+                                <span className={'standup-modal-hint'}>
+                                    {'Move to the last section to submit.'}
+                                </span>
+                            ) : null}
+                        </div>
+                    </React.Fragment>
+                ) : null}
             </Modal>
         );
     }
