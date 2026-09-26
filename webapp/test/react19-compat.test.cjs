@@ -47,7 +47,34 @@ function setUpDom() {
     };
     global.PostUtils = postUtils;
     dom.window.PostUtils = postUtils;
+
+    loadStylesheets(dom);
     return dom;
+}
+
+// The plugin's stylesheets end up in the page through webpack, so they have to
+// be in this document too for a check about what is visible to mean anything. An
+// author rule that sets `display` on an element carrying the `hidden` attribute
+// wins over the user agent's own `[hidden]` rule, and an assertion that only
+// looks at the attribute cannot see that.
+function loadStylesheets(dom) {
+    for (const file of sourceFiles('css')) {
+        const style = dom.window.document.createElement('style');
+        style.textContent = require('fs').readFileSync(file, 'utf8');
+        dom.window.document.head.appendChild(style);
+    }
+}
+
+function sourceFiles(extension) {
+    const fs = require('fs');
+    const walk = (dir) => fs.readdirSync(dir, {withFileTypes: true}).flatMap((entry) => {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+            return walk(full);
+        }
+        return full.endsWith(`.${extension}`) ? [full] : [];
+    });
+    return walk(path.join(__dirname, '../src'));
 }
 
 function setInputValue(dom, input, value) {
@@ -400,9 +427,18 @@ async function main() {
             check('tabs are a tablist with one selected tab', Boolean(tablist) && Boolean(selected));
             check('every tab controls a panel that exists',
                 Array.from(container.querySelectorAll('[role="tab"]')).every((tab) => document.getElementById(tab.getAttribute('aria-controls'))));
-            check('only the selected panel is visible',
-                container.querySelector('#cfg-panel-general').hidden === false &&
-                container.querySelector('#cfg-panel-schedule').hidden === true);
+            const shown = dom.window.getComputedStyle(container.querySelector('#cfg-panel-general')).display;
+            const other = dom.window.getComputedStyle(container.querySelector('#cfg-panel-schedule')).display;
+            check('only the selected panel is displayed',
+                shown !== 'none' && other === 'none', `selected panel: ${shown}, other: ${other}`);
+
+            // This one can fail, and is the reason the hiding is done this way:
+            // jsdom applies the user agent's `[hidden]` rule above any author
+            // rule, so it cannot see the browser bug where a display rule of
+            // ours outranked the attribute and showed every tab at once.
+            check('the hidden panel is hidden by its own style, where no rule of ours can outrank it',
+                container.querySelector('#cfg-panel-schedule').style.display === 'none' &&
+                !container.querySelector('#cfg-panel-general').style.display);
             pressKey(selected, 'ArrowRight');
             check('an arrow key selects the next tab',
                 container.querySelector('#cfg-panel-schedule').hidden === false);
@@ -831,14 +867,7 @@ async function main() {
 
     console.log('\n[8] Nothing left that React 19 removed');
     {
-        const fs = require('fs');
-        const walk = (dir) => fs.readdirSync(dir, {withFileTypes: true}).flatMap((entry) => {
-            const full = path.join(dir, entry.name);
-            if (entry.isDirectory()) {
-                return walk(full);
-            }
-            return /\.(js|jsx|css)$/.test(entry.name) ? [full] : [];
-        });
+        const {readFileSync} = require('fs');
 
         // Patterns that would either break on React 19, drag a second copy of
         // React into the bundle, or reach over the host's own styling.
@@ -855,8 +884,8 @@ async function main() {
         ];
 
         const offenders = [];
-        for (const file of walk(path.join(__dirname, '../src'))) {
-            const text = fs.readFileSync(file, 'utf8');
+        for (const file of sourceFiles('js').concat(sourceFiles('jsx'), sourceFiles('css'))) {
+            const text = readFileSync(file, 'utf8');
             for (const [needle, why] of forbidden) {
                 if (text.indexOf(needle) >= 0) {
                     offenders.push(`${path.relative(path.join(__dirname, '..'), file)}: ${needle} (${why})`);

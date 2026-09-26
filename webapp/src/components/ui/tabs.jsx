@@ -67,6 +67,14 @@ function Tabs({id, tabs, activeKey, onChange, ariaLabel = undefined}) {
                     role={'tabpanel'}
                     aria-labelledby={`${id}-tab-${tab.key}`}
                     hidden={tab.key !== activeKey}
+
+                    // Both, deliberately. The attribute says what this is to a
+                    // screen reader and lets the focus trap skip it, but it only
+                    // hides anything through the user agent's own stylesheet,
+                    // which any rule of ours outranks. The inline style cannot be
+                    // outranked, so a stray `display` rule in the kit can never
+                    // show every tab at once again.
+                    style={tab.key === activeKey ? undefined : {display: 'none'}}
                 >
                     {tab.content}
                 </div>

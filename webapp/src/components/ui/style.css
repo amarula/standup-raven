@@ -307,9 +307,10 @@
   outline: none;
 }
 
-.standup-tabpanel {
-  display: block;
-}
+/* The inactive panels are hidden by the element's own inline style, not by a
+   rule here: the `hidden` attribute only means display: none in the user
+   agent's stylesheet, so any display rule of ours would quietly win over it and
+   show every tab at once - which is what a `display: block` rule here did. */
 
 .standup-modal {
   position: fixed;
