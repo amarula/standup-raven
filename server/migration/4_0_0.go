@@ -18,3 +18,9 @@ func upgradeDatabaseToVersion4_1_0(fromVersion string) error {
 func upgradeDatabaseToVersion4_1_1(fromVersion string) error {
 	return updateSchemaVersion(version4_1_1)
 }
+
+// 4.2.0 rebuilt the web app's controls; the stored configuration, standups and
+// schema version key are untouched.
+func upgradeDatabaseToVersion4_2_0(fromVersion string) error {
+	return updateSchemaVersion(version4_2_0)
+}
