@@ -867,6 +867,86 @@ async function main() {
         check('the plugin sources are free of all of it', offenders.length === 0, offenders.join('; '));
     }
 
+    console.log('\n[9] A crash in the plugin stays in the plugin');
+    {
+        const {SentryBoundary} = bundle;
+        const consoleError = console.error;
+        const quietly = (work) => {
+            // React logs a caught error itself. The point here is that it is
+            // caught, so the log is quietened rather than the assertion.
+            try {
+                console.error = () => {};
+                act(work);
+            } finally {
+                console.error = consoleError;
+            }
+        };
+
+        const mount = (element) => {
+            const container = document.createElement('div');
+            document.body.appendChild(container);
+            const root = createRoot(container);
+            quietly(() => root.render(element));
+            return {container, root};
+        };
+
+        {
+            const {container, root} = mount(React.createElement(SentryBoundary, null, React.createElement('p', null, 'working')));
+            check('with nothing wrong the boundary is transparent',
+                container.textContent === 'working', container.textContent);
+            act(() => root.unmount());
+        }
+
+        const Boom = () => {
+            throw new Error('deliberate');
+        };
+
+        {
+            const {container, root} = mount(React.createElement(SentryBoundary, null, React.createElement(Boom)));
+            check('a component that throws shows the message instead of the page breaking',
+                container.textContent.indexOf('Standup Raven ran into an unexpected error.') >= 0,
+                container.textContent);
+            check('and offers a way back', Boolean(container.querySelector('button')));
+
+            // Trying again re-renders rather than escaping the boundary: the
+            // child throws every time, and every time it is caught.
+            const again = container.querySelector('button');
+            quietly(() => again.click());
+            check('trying again is caught too rather than thrown at the host',
+                container.textContent.indexOf('Standup Raven ran into an unexpected error.') >= 0,
+                container.textContent);
+
+            act(() => root.unmount());
+        }
+
+        // The wiring the host actually gets: a root component wrapped so that a
+        // crash inside it stays inside it.
+        {
+            const Fine = () => React.createElement('p', null, 'the modal');
+            const guarded = bundle.withBoundary(Fine);
+            const {container, root} = mount(React.createElement(guarded, {theme: 'any'}));
+            check('a guarded component renders as usual when it works',
+                container.textContent === 'the modal', container.textContent);
+
+            const guardedBoom = bundle.withBoundary(Boom);
+            const broken = mount(React.createElement(guardedBoom, null));
+            check('and shows the message when it does not',
+                broken.container.textContent.indexOf('Standup Raven ran into an unexpected error.') >= 0,
+                broken.container.textContent);
+
+            act(() => root.unmount());
+            act(() => broken.root.unmount());
+        }
+
+        {
+            const fallback = React.createElement('p', null, 'a message of our own');
+            const {container, root} = mount(React.createElement(SentryBoundary, {fallback}, React.createElement(Boom)));
+            check('a caller can supply its own fallback',
+                container.textContent === 'a message of our own', container.textContent);
+            act(() => root.unmount());
+        }
+    }
+
     console.log('');
 
     // Exit explicitly. React's scheduler keeps a MessageChannel open, and the

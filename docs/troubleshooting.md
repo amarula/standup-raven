@@ -47,6 +47,12 @@
 
     ![Site URL Verification Demo](/docs/assets/images/test-live-url.gif)
 
+* ##### The plugin's UI shows "Standup Raven ran into an unexpected error."
+
+    Something went wrong while the plugin was drawing itself, and it stopped drawing rather than taking the rest of the web app down with it. The error is reported to Sentry when the plugin's `Enable Error Reporting` setting is on and a DSN is configured; otherwise it is in the browser's console. Pressing `Try again` draws it once more, and reloading the page clears the state entirely.
+
+    If it keeps happening, please report it with the browser console output.
+
 * ##### I think the plugin is awesome and super cool.
 
     Hey, that's not a problem! It was designed that way 😎. 

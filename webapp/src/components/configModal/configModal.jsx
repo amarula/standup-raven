@@ -12,7 +12,6 @@ import {Alert, Button, Field, descriptionID, Modal, Select, Tabs, TextInput, Tog
 import RRule from '../rRule';
 import TimePicker from '../timePicker';
 import {buildStandupConfigPayload} from './payload';
-import SentryBoundary from '../../SentryBoundary';
 import './style.css';
 
 const configModalCloseTimeout = 1000;
@@ -22,10 +21,7 @@ const REPORT_FORMAT_OPTIONS = [
     {value: 'type_aggregated', label: 'Type Aggregated'},
 ];
 
-// `(SentryBoundary, React.Component)` is the comma operator: it evaluates to
-// React.Component and discards the boundary, so nothing here catches errors.
-// Left exactly as it was rather than changed under cover of a UI rewrite.
-class ConfigModal extends (SentryBoundary, React.Component) {
+class ConfigModal extends React.Component {
     constructor(props) {
         super(props);
         this.state = this.getInitialState();

@@ -6,6 +6,7 @@ import StandupModal from './components/standupModal';
 import ConfigModal from './components/configModal';
 import Constants from './constants';
 import * as Sentry from '@sentry/browser';
+import {withBoundary} from './SentryBoundary';
 import utils from './utils';
 import * as RavenClient from './raven-client';
 
@@ -26,8 +27,8 @@ class StandupRavenPlugin {
             Constants.PLUGIN_DISPLAY_NAME,
         );
 
-        registry.registerRootComponent(StandupModal);
-        registry.registerRootComponent(ConfigModal);
+        registry.registerRootComponent(withBoundary(StandupModal));
+        registry.registerRootComponent(withBoundary(ConfigModal));
         registry.registerWebSocketEventHandler(
             `custom_${Constants.PLUGIN_NAME}_open_config_modal`,
             () => {

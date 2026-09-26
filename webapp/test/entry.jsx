@@ -11,6 +11,7 @@ import {buildRRuleString, parseRRuleString, DEFAULT_EDITOR_STATE} from '../src/c
 import {standupModalChannelId} from '../src/reducer/standupModalReducer';
 import Selectors from '../src/selectors';
 import Constants from '../src/constants';
+import SentryBoundary, {withBoundary} from '../src/SentryBoundary';
 import * as UI from '../src/components/ui';
 import ConfigModal from '../src/components/configModal/configModal.jsx';
 import {buildStandupConfigPayload} from '../src/components/configModal/payload';
@@ -28,6 +29,8 @@ export {
     standupModalChannelId,
     Selectors,
     Constants,
+    SentryBoundary,
+    withBoundary,
     UI,
     ConfigModal,
     buildStandupConfigPayload,

@@ -9,17 +9,13 @@ import ChevronRightIcon from '@mattermost/compass-icons/components/chevron-right
 import Constants from '../../constants';
 import {Alert, Button, Modal, TextInput} from '../ui';
 import {buildUserStandupPayload} from './payload';
-import SentryBoundary from '../../SentryBoundary';
 import './style.css';
 
 const {formatText, messageHtmlToComponent} = window.PostUtils;
 
 const standupModalCloseTimeout = 1000;
 
-// `(SentryBoundary, React.Component)` is the comma operator: it evaluates to
-// React.Component and discards the boundary, so nothing here catches errors.
-// Left exactly as it was rather than changed under cover of a UI rewrite.
-class StandupModal extends (SentryBoundary, React.Component) {
+class StandupModal extends React.Component {
     constructor(props) {
         super(props);
         this.state = StandupModal.getInitialState();
