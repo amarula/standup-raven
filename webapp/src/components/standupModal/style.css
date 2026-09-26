@@ -1,0 +1,9 @@
+/* The message this modal shows animates in. The keyframes used to live in the
+   config modal's stylesheet, which was the only reason the two files were
+   coupled - they are declared here now, next to the animation that uses them. */
+
+@keyframes pop {
+  50% {
+    transform: scale(1.2);
+  }
+}

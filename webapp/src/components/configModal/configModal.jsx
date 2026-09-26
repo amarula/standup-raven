@@ -1,17 +1,4 @@
-import React from 'react';
-import {
-    Alert,
-    Button,
-    ControlLabel,
-    FormControl,
-    FormGroup,
-    InputGroup,
-    MenuItem,
-    Modal,
-    SplitButton,
-    Tab,
-    Tabs,
-} from 'react-bootstrap';
+import * as React from 'react';
 import PropTypes from 'prop-types';
 import Cookies from 'js-cookie';
 import * as HttpStatus from 'http-status-codes';
@@ -20,54 +7,28 @@ import request from 'superagent';
 import utils from '../../utils';
 import * as RavenClient from '../../raven-client';
 import Constants from '../../constants';
-import SentryBoundary from '../../SentryBoundary';
-
-import ToggleSwitch from '../toggleSwitch';
+import {TIMEZONE_OPTIONS} from '../../constants/timezones';
+import {Alert, Button, Field, descriptionID, Modal, Select, Tabs, TextInput, Toggle} from '../ui';
 import RRule from '../rRule';
 import TimePicker from '../timePicker';
-
+import {buildStandupConfigPayload} from './payload';
+import SentryBoundary from '../../SentryBoundary';
 import './style.css';
-import reactStyles from './style';
 
 const configModalCloseTimeout = 1000;
-const timezones = require('../../../../timezones.json');
 
+const REPORT_FORMAT_OPTIONS = [
+    {value: 'user_aggregated', label: 'User Aggregated'},
+    {value: 'type_aggregated', label: 'Type Aggregated'},
+];
+
+// `(SentryBoundary, React.Component)` is the comma operator: it evaluates to
+// React.Component and discards the boundary, so nothing here catches errors.
+// Left exactly as it was rather than changed under cover of a UI rewrite.
 class ConfigModal extends (SentryBoundary, React.Component) {
-    newConfigPermissionMissingComponent = (
-        <span>
-            <span>{'No standup configured for this channel'}</span>
-            <br/>
-            <br/>
-            <span>{'You do not have permission to setup Standup Raven. Please contact a system, team or channel admin to do so.'}</span>
-        </span>
-    );
-
     constructor(props) {
         super(props);
         this.state = this.getInitialState();
-    }
-
-    static get REPORT_DISPLAY_NAMES() {
-        return {
-            user_aggregated: 'User Aggregated',
-            type_aggregated: 'Type Aggregated',
-        };
-    }
-
-    static get STATUS_DISPLAY_NAMES() {
-        return {
-            true: 'Enabled',
-            false: 'Disabled',
-        };
-    }
-
-    static get TIMEZONE_DISPLAY_NAMES() {
-        const timezoneList = {};
-        for (let i = 0; i < Object.keys(timezones).length; ++i) {
-            timezoneList[timezones[i]['display_name']] = timezones[i]['value'];
-        }
-        timezoneList[''] = '-';
-        return timezoneList;
     }
 
     getInitialState = () => {
@@ -81,117 +42,22 @@ class ConfigModal extends (SentryBoundary, React.Component) {
             sections: {},
             members: [],
             enabled: true,
-            status: true,
+            windowOpenReminderEnabled: true,
+            windowCloseReminderEnabled: true,
+            timezone: '',
+            scheduleEnabled: false,
+            rruleString: '',
+            startDate: new Date().toISOString(),
+            activeTab: 'general',
             message: {
                 show: false,
                 text: '',
                 type: 'info',
             },
-            windowOpenReminderEnabled: true,
-            windowCloseReminderEnabled: true,
-            timezone: '',
-            scheduleEnabled: false,
-            schedule: '',
-            rruleString: '',
-            startDate: new Date().toISOString(),
             pluginConfig: {
                 permissionSchemaEnabled: true,
             },
         };
-    };
-
-    handleClose = () => {
-        this.setState(this.getInitialState);
-        this.props.close();
-    };
-
-    handleWindowOpenTimeChange = (time) => {
-        this.setState({
-            windowOpenTime: time,
-        });
-    };
-
-    handleWindowCloseTimeChange = (time) => {
-        this.setState({
-            windowCloseTime: time,
-        });
-    };
-
-    handleReportTypeChange = (reportType) => {
-        this.setState({
-            reportFormat: reportType,
-        });
-    };
-
-    handleStatusChange = () => {
-        this.setState({
-            enabled: !this.state.enabled,
-        });
-    };
-
-    handleTimezoneChange = (timezone) => {
-        this.setState({timezone});
-    };
-
-    handleWindowCloseReminderChange = () => {
-        this.setState({
-            windowCloseReminderEnabled: !this.state.windowCloseReminderEnabled,
-        });
-    };
-
-    handleWindowOpenReminderChange = () => {
-        this.setState({
-            windowOpenReminderEnabled: !this.state.windowOpenReminderEnabled,
-        });
-    };
-
-    handleScheduleStatusChange = () => {
-        this.setState({
-            scheduleEnabled: !this.state.scheduleEnabled,
-        });
-    };
-
-    handleRecurrenceChange = (rruleString, startDate) => {
-        this.setState({
-            rruleString,
-            startDate,
-        });
-    };
-
-    generateSections = (onChangeCallback) => {
-        // eslint-disable-next-line no-shadow
-        const style = reactStyles.getStyle();
-        const sections = [];
-
-        for (let i = 0; i <= Object.keys(this.state.sections).length; ++i) {
-            sections.push(
-                <FormGroup
-                    disabled={!this.state.hasPermission}
-                    key={i.toString()}
-                    style={{...style.formGroup, ...style.sections}}
-                >
-                    <InputGroup>
-                        <InputGroup.Addon>{(i + 1) + '.'}</InputGroup.Addon>
-                        <FormControl
-                            type={'text'}
-                            name={`line${i + 1}`}
-                            onChange={onChangeCallback}
-                            value={this.state.sections[`line${i + 1}`] || ''}
-                        />
-                    </InputGroup>
-                </FormGroup>,
-            );
-        }
-
-        return sections;
-    };
-
-    handleSectionChange = (e) => {
-        const sections = {...this.state.sections};
-        sections[e.target.name] = e.target.value;
-        this.setState({
-            sections,
-        });
     };
 
     componentDidUpdate(prevProp) {
@@ -220,49 +86,36 @@ class ConfigModal extends (SentryBoundary, React.Component) {
                             sections[`line${i + 1}`] = standupConfig.sections[i];
                         }
 
-                        this.setState((prevState) => {
-                            prevState.windowOpenTime = standupConfig.windowOpenTime;
-                            prevState.windowCloseTime = standupConfig.windowCloseTime;
-                            prevState.reportFormat = standupConfig.reportFormat;
-                            prevState.members = standupConfig.members;
-                            prevState.sections = {};
-                            prevState.enabled = standupConfig.enabled;
-                            prevState.status = standupConfig.enabled;
-                            prevState.timezone = standupConfig.timezone;
-                            prevState.windowOpenReminderEnabled = standupConfig.windowOpenReminderEnabled;
-                            prevState.windowCloseReminderEnabled = standupConfig.windowCloseReminderEnabled;
-                            prevState.scheduleEnabled = standupConfig.scheduleEnabled;
-                            prevState.schedule = standupConfig.schedule;
-                            prevState.rruleString = standupConfig.rruleString;
-                            prevState.startDate = standupConfig.startDate;
-                            prevState.isEffectiveChannelAdmin = utils.isEffectiveChannelAdmin(this.props.userRoles);
-                            prevState.sections = sections;
-                            prevState.standupConfigured = true;
-
-                            return prevState;
+                        this.setState({
+                            windowOpenTime: standupConfig.windowOpenTime,
+                            windowCloseTime: standupConfig.windowCloseTime,
+                            reportFormat: standupConfig.reportFormat,
+                            members: standupConfig.members,
+                            sections,
+                            enabled: standupConfig.enabled,
+                            timezone: standupConfig.timezone,
+                            windowOpenReminderEnabled: standupConfig.windowOpenReminderEnabled,
+                            windowCloseReminderEnabled: standupConfig.windowCloseReminderEnabled,
+                            scheduleEnabled: standupConfig.scheduleEnabled,
+                            rruleString: standupConfig.rruleString,
+                            startDate: standupConfig.startDate,
+                            standupConfigured: true,
                         });
                     } else if (result.status === HttpStatus.NOT_FOUND) {
-                        // fetch system default timezone
+                        // The channel has no standup yet, so start from the
+                        // server's own timezone rather than an empty field.
                         request
                             .get(`${this.props.siteURL}/${Constants.URL_GET_TIMEZONE}`)
                             .withCredentials()
                             .end((error, response) => {
                                 if (response.ok) {
-                                    const timezone = String(response.body);
-                                    // eslint-disable-next-line max-nested-callbacks
-                                    this.setState((prevState) => {
-                                        prevState.timezone = timezone;
-                                        return prevState;
-                                    });
+                                    this.setState({timezone: String(response.body)});
                                 } else if (error) {
                                     console.error(error);
                                 }
                             });
                     } else if (result.status === HttpStatus.UNAUTHORIZED) {
-                        this.setState((prevState) => {
-                            prevState.hasPermission = false;
-                            return prevState;
-                        });
+                        this.setState({hasPermission: false});
                     }
 
                     resolve();
@@ -271,17 +124,18 @@ class ConfigModal extends (SentryBoundary, React.Component) {
     };
 
     getPluginConfig = () => {
-        RavenClient.Config.getPluginConfig(this.props.siteURL)
+        return RavenClient.Config.getPluginConfig(this.props.siteURL)
             .then((pluginConfig) => {
-                this.setState((prevState) => {
-                    prevState.pluginConfig = pluginConfig;
+                // Without the permission schema everyone may configure a
+                // channel; with it, only an effective channel admin may - and
+                // guests never may.
+                const allowed = pluginConfig.permissionSchemaEnabled ?
+                    utils.isEffectiveChannelAdmin(this.props.userRoles) :
+                    true;
 
-                    // if permission schema is not enabled then everyone has the permission
-                    prevState.hasPermission =
-                        pluginConfig.permissionSchemaEnabled ? utils.isEffectiveChannelAdmin(this.props.userRoles) : true;
-
-                    prevState.hasPermission = prevState.hasPermission && !this.props.isGuest;
-                    return prevState;
+                this.setState({
+                    pluginConfig,
+                    hasPermission: allowed && !this.props.isGuest,
                 });
             })
             .catch((error) => {
@@ -289,28 +143,61 @@ class ConfigModal extends (SentryBoundary, React.Component) {
             });
     };
 
-    prepareStandupConfigPayload() {
-        return {
-            channelId: this.props.channelID,
-            windowOpenTime: this.state.windowOpenTime,
-            windowCloseTime: this.state.windowCloseTime,
-            reportFormat: this.state.reportFormat,
-            sections: Object.values(this.state.sections).map((x) => x.trim()).filter((x) => x !== ''),
-            members: this.state.members,
-            enabled: this.state.enabled,
-            timezone: this.state.timezone,
-            windowCloseReminderEnabled: this.state.windowCloseReminderEnabled,
-            windowOpenReminderEnabled: this.state.windowOpenReminderEnabled,
-            scheduleEnabled: this.state.scheduleEnabled,
-            rruleString: this.state.rruleString,
-            startDate: this.state.startDate,
-        };
-    }
+    handleClose = () => {
+        this.setState(this.getInitialState());
+        this.props.close();
+    };
 
-    saveStandupConfig = (e) => {
-        e.preventDefault();
+    handleTabChange = (activeTab) => {
+        this.setState({activeTab});
+    };
 
-        // hiding message section so animation can re-trigger on new message
+    handleStatusChange = (enabled) => {
+        this.setState({enabled});
+    };
+
+    handleScheduleStatusChange = (scheduleEnabled) => {
+        this.setState({scheduleEnabled});
+    };
+
+    handleWindowOpenReminderChange = (windowOpenReminderEnabled) => {
+        this.setState({windowOpenReminderEnabled});
+    };
+
+    handleWindowCloseReminderChange = (windowCloseReminderEnabled) => {
+        this.setState({windowCloseReminderEnabled});
+    };
+
+    handleReportTypeChange = (reportFormat) => {
+        this.setState({reportFormat});
+    };
+
+    handleTimezoneChange = (timezone) => {
+        this.setState({timezone});
+    };
+
+    handleWindowOpenTimeChange = (windowOpenTime) => {
+        this.setState({windowOpenTime});
+    };
+
+    handleWindowCloseTimeChange = (windowCloseTime) => {
+        this.setState({windowCloseTime});
+    };
+
+    handleRecurrenceChange = (rruleString, startDate) => {
+        this.setState({rruleString, startDate});
+    };
+
+    handleSectionChange = (event) => {
+        const sections = {...this.state.sections};
+        sections[event.target.name] = event.target.value;
+        this.setState({sections});
+    };
+
+    saveStandupConfig = (event) => {
+        event.preventDefault();
+
+        // Hiding the message first so its animation re-triggers on the next one.
         this.setState({
             message: {
                 show: false,
@@ -320,7 +207,7 @@ class ConfigModal extends (SentryBoundary, React.Component) {
         request
             .post(`${this.props.siteURL}/${Constants.URL_STANDUP_CONFIG}?channel_id=${this.props.channelID}`)
             .withCredentials()
-            .send(this.prepareStandupConfigPayload())
+            .send(buildStandupConfigPayload(this.state, this.props.channelID))
             .set('X-CSRF-Token', Cookies.get(Constants.MATTERMOST_CSRF_COOKIE))
             .set('Content-Type', 'application/json')
             .end((err, res) => {
@@ -328,7 +215,7 @@ class ConfigModal extends (SentryBoundary, React.Component) {
                     this.setState({
                         message: {
                             show: true,
-                            text: 'An error occurred while saving standup config.\n' + err.response.text,
+                            text: `An error occurred while saving standup config.\n${err.response.text}`,
                             type: 'danger',
                         },
                     });
@@ -345,241 +232,267 @@ class ConfigModal extends (SentryBoundary, React.Component) {
             });
     };
 
-    render() {
-        // eslint-disable-next-line no-shadow
-        const style = reactStyles.getStyle();
-        const data = timezones.map((timezone) =>
-            (
-                <MenuItem
-                    key={timezone.value}
-                    eventKey={timezone.value}
-                >
-                    {timezone.display_name}
-                </MenuItem>
-            ),
-        );
-        let standupErrorMessage = '';
-        let standupErrorSubMessage = '';
+    renderSections() {
+        // One row more than there are sections, so there is always somewhere to
+        // type the next one.
+        const rows = [];
+        const count = Object.keys(this.state.sections).length;
 
-        if (!this.state.hasPermission) {
-            standupErrorMessage = 'Viewing configuration in read-only mode.';
-            standupErrorSubMessage = this.props.isGuest ? 'Guest users cannot update standup config' : 'Only a channel admin can update the configuration.';
+        for (let i = 0; i <= count; ++i) {
+            const name = `line${i + 1}`;
+            rows.push(
+                <TextInput
+                    key={name}
+                    id={`standup-section-${i + 1}`}
+                    name={name}
+                    prefix={`${i + 1}.`}
+                    value={this.state.sections[name] || ''}
+                    onChange={this.handleSectionChange}
+                    disabled={!this.state.hasPermission}
+                    placeholder={'What did you work on?'}
+                    ariaLabel={`Standup section ${i + 1}`}
+                />,
+            );
         }
 
-        const spinner =
-            (<div style={style.spinner}>
+        return rows;
+    }
+
+    renderGeneralTab() {
+        const disabled = !this.state.hasPermission;
+
+        return (
+            <React.Fragment>
+                <Field
+                    label={'Enabled'}
+                    description={'Ask members of this channel to fill in a standup.'}
+                    htmlFor={'standup-config-enabled'}
+                    disabled={disabled}
+                >
+                    <Toggle
+                        id={'standup-config-enabled'}
+                        checked={this.state.enabled}
+                        onChange={this.handleStatusChange}
+                        disabled={disabled}
+                    />
+                </Field>
+                <Field
+                    label={'Standup Schedule'}
+                    description={'Only collect standups on the days the schedule on the Schedule tab describes.'}
+                    htmlFor={'standup-config-schedule-enabled'}
+                    disabled={disabled}
+                >
+                    <Toggle
+                        id={'standup-config-schedule-enabled'}
+                        checked={this.state.scheduleEnabled}
+                        onChange={this.handleScheduleStatusChange}
+                        disabled={disabled}
+                    />
+                </Field>
+                <Field
+                    label={'Standup Report Format'}
+                    description={'How each day\'s report groups what members wrote.'}
+                    htmlFor={'standup-config-report-format'}
+                    disabled={disabled}
+                >
+                    <Select
+                        id={'standup-config-report-format'}
+                        value={this.state.reportFormat}
+                        options={REPORT_FORMAT_OPTIONS}
+                        onChange={this.handleReportTypeChange}
+                        disabled={disabled}
+                        ariaDescribedBy={descriptionID('standup-config-report-format')}
+                    />
+                </Field>
+                <Field
+                    label={'Sections'}
+                    description={'The prompts each member fills in, in the order they appear.'}
+                    disabled={disabled}
+                >
+                    <div className={'standup-config-sections'}>
+                        {this.renderSections()}
+                    </div>
+                </Field>
+            </React.Fragment>
+        );
+    }
+
+    renderNotificationsTab() {
+        const disabled = !this.state.hasPermission;
+
+        return (
+            <React.Fragment>
+                <Field
+                    label={'Window Open Reminder'}
+                    description={'Post a message in the channel when the standup window opens.'}
+                    htmlFor={'standup-config-window-open-reminder'}
+                    disabled={disabled}
+                >
+                    <Toggle
+                        id={'standup-config-window-open-reminder'}
+                        checked={this.state.windowOpenReminderEnabled}
+                        onChange={this.handleWindowOpenReminderChange}
+                        disabled={disabled}
+                    />
+                </Field>
+                <Field
+                    label={'Window Close Reminder'}
+                    description={'Remind the members who have not submitted, shortly before the window closes.'}
+                    htmlFor={'standup-config-window-close-reminder'}
+                    disabled={disabled}
+                >
+                    <Toggle
+                        id={'standup-config-window-close-reminder'}
+                        checked={this.state.windowCloseReminderEnabled}
+                        onChange={this.handleWindowCloseReminderChange}
+                        disabled={disabled}
+                    />
+                </Field>
+            </React.Fragment>
+        );
+    }
+
+    renderScheduleTab() {
+        const disabled = !this.state.hasPermission;
+
+        return (
+            <React.Fragment>
+                <Field
+                    label={'Window Time'}
+                    description={'When the standup window opens and closes, in the timezone below.'}
+                    htmlFor={'window-start-time-hours'}
+                    disabled={disabled}
+                >
+                    <TimePicker
+                        id={'window-start-time'}
+                        time={this.state.windowOpenTime}
+                        onChange={this.handleWindowOpenTimeChange}
+                        disabled={disabled}
+                        label={'Window opens'}
+                    />
+                    <span className={'standup-config-to'}>{'to'}</span>
+                    <TimePicker
+                        id={'window-end-time'}
+                        time={this.state.windowCloseTime}
+                        onChange={this.handleWindowCloseTimeChange}
+                        disabled={disabled}
+                        label={'Window closes'}
+                    />
+                </Field>
+                <Field
+                    label={'Timezone'}
+                    description={'The timezone the window times are in.'}
+                    htmlFor={'standup-config-timezone'}
+                    disabled={disabled}
+                >
+                    <Select
+                        id={'standup-config-timezone'}
+                        value={this.state.timezone}
+                        options={TIMEZONE_OPTIONS}
+                        onChange={this.handleTimezoneChange}
+                        disabled={disabled}
+                        searchable={true}
+                        ariaDescribedBy={descriptionID('standup-config-timezone')}
+                    />
+                </Field>
+                <RRule
+                    startDate={this.state.startDate}
+                    rrule={this.state.rruleString}
+                    onChange={this.handleRecurrenceChange}
+                />
+            </React.Fragment>
+        );
+    }
+
+    render() {
+        const noPermission = !this.state.hasPermission;
+        let readOnlyMessage = '';
+        let readOnlyDetail = '';
+
+        if (noPermission) {
+            readOnlyMessage = 'Viewing configuration in read-only mode.';
+            readOnlyDetail = this.props.isGuest ?
+                'Guest users cannot update standup config' :
+                'Only a channel admin can update the configuration.';
+        }
+
+        const permissionMissing = this.state.standupConfigured === false &&
+            this.state.pluginConfig.permissionSchemaEnabled &&
+            noPermission;
+
+        const spinner = (
+            <div className={'standup-config-spinner'}>
                 <img
                     src={`${this.props.siteURL}/${Constants.URL_SPINNER_ICON}`}
                     alt={'loading...'}
                 />
-            </div>);
+            </div>
+        );
 
-        const errorMessage =
-            (<div style={style.standupErrorSection}>
-                <span style={style.standupErrorMessage}>{standupErrorMessage}</span>
-                <br/>
-                <span>{standupErrorSubMessage}</span>
-            </div>);
+        const tabs = [
+            {key: 'general', label: 'General', content: this.renderGeneralTab()},
+            {key: 'notifications', label: 'Notifications', content: this.renderNotificationsTab()},
+            {key: 'schedule', label: 'Schedule', content: this.renderScheduleTab()},
+        ];
 
-        const showNewStandupInitializationPermissionError = this.state.standupConfigured === false && // if standup is NOT configured for this channel
-            this.state.pluginConfig.permissionSchemaEnabled && // and permission schema is enabled
-            !this.state.hasPermission; // and the user doesn't have permission
+        // While loading, and when the channel has no standup and the viewer
+        // could not create one anyway, there is nothing to save.
+        let footer = null;
+        if (!this.state.showSpinner && !permissionMissing) {
+            footer = noPermission ? (
+                <div className={'standup-config-readonly'}>
+                    <span>{readOnlyMessage}</span>
+                    <span>{readOnlyDetail}</span>
+                </div>
+            ) : (
+                <React.Fragment>
+                    <Button
+                        variant={'tertiary'}
+                        onClick={this.handleClose}
+                    >
+                        {'Cancel'}
+                    </Button>
+                    <Button
+                        variant={'primary'}
+                        onClick={this.saveStandupConfig}
+                    >
+                        {'Save'}
+                    </Button>
+                </React.Fragment>
+            );
+        }
 
         return (
             <Modal
                 show={this.props.visible}
                 onHide={this.handleClose}
-                backdrop={'static'}
+                title={`${Constants.PLUGIN_DISPLAY_NAME} - Configure`}
+                labelledBy={'standup-config-title'}
+                footer={footer}
             >
-                <Modal.Header closeButton={true}>
-                    <Modal.Title>
-                        {`${Constants.PLUGIN_DISPLAY_NAME} - Configure`}
-                    </Modal.Title>
-                </Modal.Header>
-
-                <Modal.Body style={showNewStandupInitializationPermissionError ? style.bodyCompact : style.body}>
-                    {/* in progress spinner */}
-                    <span hidden={!this.state.showSpinner}>
-                        {spinner}
-                    </span>
-
-                    <div hidden={this.state.showSpinner || showNewStandupInitializationPermissionError}>
-                        <Tabs id={'standup-config-tabs'}>
-                            <Tab
-                                eventKey={1}
-                                title={'General'}
-                            >
-                                <FormGroup
-                                    style={style.formGroup}
-                                    disabled={!this.state.hasPermission}
-                                >
-                                    <ControlLabel style={style.controlLabel}>
-                                        {'Enabled:'}
-                                    </ControlLabel>
-                                    <ToggleSwitch
-                                        onChange={this.handleStatusChange}
-                                        checked={this.state.enabled}
-                                        theme={this.props.theme}
-                                    />
-                                </FormGroup>
-                                <FormGroup
-                                    style={style.formGroup}
-                                    disabled={!this.state.hasPermission}
-                                >
-                                    <ControlLabel style={style.controlLabel}>
-                                        {'Standup Schedule:'}
-                                    </ControlLabel>
-                                    <ToggleSwitch
-                                        onChange={this.handleScheduleStatusChange}
-                                        checked={this.state.scheduleEnabled}
-                                        theme={this.props.theme}
-                                    />
-                                </FormGroup>
-                                <FormGroup
-                                    style={style.formGroup}
-                                    disabled={!this.state.hasPermission}
-                                >
-                                    <ControlLabel style={style.controlLabel}>
-                                        {'Standup Report Format:'}
-                                    </ControlLabel>
-                                    <SplitButton
-                                        disabled={!this.state.hasPermission}
-                                        title={ConfigModal.REPORT_DISPLAY_NAMES[this.state.reportFormat]}
-                                        onSelect={this.handleReportTypeChange}
-                                        bsStyle={'link'}
-                                    >
-                                        <MenuItem eventKey={'user_aggregated'}>{'User Aggregated'}</MenuItem>
-                                        <MenuItem eventKey={'type_aggregated'}>{'Type Aggregated'}</MenuItem>
-                                    </SplitButton>
-                                </FormGroup>
-                                <FormGroup
-                                    style={{...style.formGroup, ...style.formGroupNoMarginBottom}}
-                                    disabled={!this.state.hasPermission}
-                                >
-                                    <ControlLabel style={style.controlLabel}>{'Sections:'}</ControlLabel>
-                                </FormGroup>
-
-                                <div style={style.sectionGroup}>
-                                    {this.generateSections(this.handleSectionChange)}
-                                </div>
-                            </Tab>
-                            <Tab
-                                eventKey={2}
-                                title={'Notifications'}
-                            >
-                                <FormGroup
-                                    style={style.formGroup}
-                                    disabled={!this.state.hasPermission}
-                                >
-                                    <ControlLabel style={style.controlLabel}>
-                                        {'Window Open Reminder:'}
-                                    </ControlLabel>
-                                    <ToggleSwitch
-                                        onChange={this.handleWindowOpenReminderChange}
-                                        checked={this.state.windowOpenReminderEnabled}
-                                        theme={this.props.theme}
-                                    />
-                                </FormGroup>
-                                <FormGroup
-                                    style={style.formGroup}
-                                    disabled={!this.state.hasPermission}
-                                >
-                                    <ControlLabel style={style.controlLabel}>
-                                        {'Window Close Reminder:'}
-                                    </ControlLabel>
-                                    <ToggleSwitch
-                                        onChange={this.handleWindowCloseReminderChange}
-                                        checked={this.state.windowCloseReminderEnabled}
-                                        theme={this.props.theme}
-                                    />
-                                </FormGroup>
-                            </Tab>
-                            <Tab
-                                eventKey={3}
-                                title={'Schedule'}
-                            >
-                                <FormGroup
-                                    style={style.formGroup}
-                                    disabled={!this.state.hasPermission}
-                                >
-                                    <ControlLabel style={style.controlLabel}>
-                                        {'Window Time:'}
-                                    </ControlLabel>
-                                    <TimePicker
-                                        id={'window-start-time'}
-                                        time={this.state.windowOpenTime}
-                                        onChange={this.handleWindowOpenTimeChange}
-                                        bsStyle={'link'}
-                                    />
-                                    <span style={style.controlLabelX}>{'to'}</span>
-                                    <TimePicker
-                                        id={'window-end-time'}
-                                        time={this.state.windowCloseTime}
-                                        onChange={this.handleWindowCloseTimeChange}
-                                        bsStyle={'link'}
-                                    />
-                                </FormGroup>
-                                <FormGroup
-                                    style={style.formGroup}
-                                    disabled={!this.state.hasPermission}
-                                >
-                                    <ControlLabel style={style.controlLabel}>
-                                        {'Timezone:'}
-                                    </ControlLabel>
-                                    <SplitButton
-                                        title={ConfigModal.TIMEZONE_DISPLAY_NAMES[this.state.timezone]}
-                                        onSelect={this.handleTimezoneChange}
-                                        bsStyle={'link'}
-                                        style={{width: '300px'}}
-                                    >{data}
-                                    </SplitButton>
-                                </FormGroup>
-                                <FormGroup disabled={!this.state.hasPermission}>
-                                    <RRule
-                                        startDate={this.state.startDate}
-                                        rrule={this.state.rruleString}
-                                        onChange={this.handleRecurrenceChange}
-                                    />
-                                </FormGroup>
-                            </Tab>
-                        </Tabs>
+                {this.state.showSpinner ? spinner : null}
+                {!this.state.showSpinner && permissionMissing ? (
+                    <div className={'standup-config-readonly'}>
+                        <p>{'No standup configured for this channel'}</p>
+                        <p>{'You do not have permission to setup Standup Raven. Please contact a system, team or channel admin to do so.'}</p>
                     </div>
-
-                    {showNewStandupInitializationPermissionError ? (this.newConfigPermissionMissingComponent) : null}
-
-                </Modal.Body>
-
-                <Modal.Footer hidden={this.state.showSpinner || showNewStandupInitializationPermissionError}>
-                    {/*eslint-disable-next-line eqeqeq*/}
-                    <div hidden={this.state.hasPermission == false}>
-                        <Button
-                            type='button'
-                            onClick={this.handleClose}
-                            bsStyle='link'
-                        >
-                            {'Cancel'}
-                        </Button>
-                        <Button
-                            type='submit'
-                            bsStyle='primary'
-                            onClick={this.saveStandupConfig}
-                        >
-                            {'Save'}
-                        </Button>
-                    </div>
-
-                    {/*eslint-disable-next-line eqeqeq*/}
-                    <div hidden={this.state.hasPermission == true}>
-                        {errorMessage}
-                    </div>
-                </Modal.Footer>
-                <Alert
-                    bsStyle={this.state.message.type}
-                    style={style.alert}
-                    className={(this.state.message.show ? '' : 'hidden')}
-                >
-                    {this.state.message.text}
-                </Alert>
+                ) : null}
+                {!this.state.showSpinner && !permissionMissing ? (
+                    <React.Fragment>
+                        {this.state.message.show ? (
+                            <Alert variant={this.state.message.type}>
+                                {this.state.message.text}
+                            </Alert>
+                        ) : null}
+                        <Tabs
+                            id={'standup-config-tabs'}
+                            tabs={tabs}
+                            activeKey={this.state.activeTab}
+                            onChange={this.handleTabChange}
+                            ariaLabel={'Standup configuration'}
+                        />
+                    </React.Fragment>
+                ) : null}
             </Modal>
         );
     }
@@ -593,6 +506,10 @@ ConfigModal.propTypes = {
     visible: PropTypes.bool,
     siteURL: PropTypes.string.isRequired,
     isGuest: PropTypes.bool.isRequired,
+};
+
+ConfigModal.defaultProps = {
+    visible: false,
 };
 
 export default ConfigModal;

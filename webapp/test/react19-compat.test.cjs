@@ -74,6 +74,7 @@ async function buildBundle() {
             'react-dom': 'react-dom19',
             'react-dom/client': 'react-dom19/client',
             'react-bootstrap': path.join(__dirname, 'host-react-bootstrap.cjs'),
+            superagent: path.join(__dirname, 'host-superagent.cjs'),
         },
         jsx: 'transform',
         logLevel: 'warning',
@@ -461,12 +462,166 @@ async function main() {
         }
     }
 
+    console.log('\n[6] The configure modal');
+    {
+        const {ConfigModal, buildStandupConfigPayload, TimePicker} = bundle;
+        const stub = global.__superagentStub;
+
+        // What the server GET returns: sections are a list of prompts.
+        const stored = {
+            windowOpenTime: '09:30',
+            windowCloseTime: '18:00',
+            reportFormat: 'type_aggregated',
+            sections: ['What did you do today?', 'What will you do today?'],
+            members: ['user_one', 'user_two'],
+            enabled: true,
+            timezone: 'Asia/Kolkata',
+            windowCloseReminderEnabled: false,
+            windowOpenReminderEnabled: true,
+            scheduleEnabled: true,
+            rruleString: 'FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,TU,WE,TH,FR',
+            startDate: '2026-09-26T00:00:00.000Z',
+        };
+
+        // The same thing as the modal holds it: sections keyed by row name,
+        // with room for one more.
+        const state = {
+            ...stored,
+            sections: {line1: 'What did you do today?', line2: 'What will you do today?', line3: '   '},
+        };
+        const body = {
+            channelId: 'channel_id',
+            windowOpenTime: '09:30',
+            windowCloseTime: '18:00',
+            reportFormat: 'type_aggregated',
+            sections: ['What did you do today?', 'What will you do today?'],
+            members: ['user_one', 'user_two'],
+            enabled: true,
+            timezone: 'Asia/Kolkata',
+            windowCloseReminderEnabled: false,
+            windowOpenReminderEnabled: true,
+            scheduleEnabled: true,
+            rruleString: 'FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,TU,WE,TH,FR',
+            startDate: '2026-09-26T00:00:00.000Z',
+        };
+
+        check('the save body is exactly what the server has always received',
+            JSON.stringify(buildStandupConfigPayload(state, 'channel_id')) === JSON.stringify(body),
+            JSON.stringify(buildStandupConfigPayload(state, 'channel_id')));
+        check('the empty section row is not sent',
+            buildStandupConfigPayload(state, 'channel_id').sections.length === 2);
+
+        // The time picker: two selects and the colon between them.
+        {
+            let time = null;
+            const container = document.createElement('div');
+            document.body.appendChild(container);
+            const root = createRoot(container);
+            act(() => root.render(React.createElement(TimePicker, {
+                id: 'window-start-time',
+                time: '09:30',
+                onChange: (value) => {
+                    time = value;
+                },
+            })));
+
+            const hours = container.querySelector('#window-start-time-hours');
+            const minutes = container.querySelector('#window-start-time-minutes');
+            check('the picker shows the time it was given',
+                hours.textContent === '09' && minutes.textContent === '30',
+                `${hours.textContent}:${minutes.textContent}`);
+
+            const keyDown = (element, key) => act(() => element.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key, bubbles: true, cancelable: true})));
+            act(() => hours.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true, cancelable: true})));
+            keyDown(hours, 'ArrowDown');
+            keyDown(hours, 'Enter');
+            check('picking an hour reports a zero-padded HH:MM', time === '10:30', `got ${time}`);
+
+            act(() => root.unmount());
+        }
+
+        // The modal, opened the way Mattermost opens it and saved through the
+        // stubbed network.
+        {
+            document.cookie = 'MMCSRF=csrf_token';
+            stub.reset();
+            stub.queue({ok: true, status: 200, body: stored});
+            stub.queue({ok: true, status: 200, body: {permissionSchemaEnabled: false}});
+
+            const container = document.createElement('div');
+            document.body.appendChild(container);
+            const root = createRoot(container);
+            const render = (visible) => act(() => root.render(React.createElement(ConfigModal, {
+                channelID: 'channel_id',
+                currentUserId: 'user_one',
+                userRoles: [],
+                visible,
+                close: () => {},
+                siteURL: 'https://mm.example.com',
+                isGuest: false,
+            })));
+
+            // It loads when it becomes visible, not when it is mounted.
+            render(false);
+            check('a closed modal renders nothing', document.querySelector('[role="dialog"]') === null);
+            render(true);
+
+            // Let the two queued GETs settle.
+            await act(async () => {
+                await Promise.resolve();
+                await Promise.resolve();
+            });
+
+            {
+                const dialog = document.querySelector('[role="dialog"]');
+                check('opening it loads the saved configuration', Boolean(dialog));
+                check('every setting is a labelled row', document.querySelectorAll('.standup-field').length === 8,
+                    `${document.querySelectorAll('.standup-field').length} rows`);
+                check('the saved report format is what the select shows',
+                    document.querySelector('#standup-config-report-format').textContent.indexOf('Type Aggregated') >= 0);
+                check('the saved timezone is what the field shows',
+                    document.querySelector('#standup-config-timezone').value === 'Asia/Kolkata',
+                    document.querySelector('#standup-config-timezone').value);
+                check('the sections come back with one empty row to type into',
+                    document.querySelectorAll('.standup-config-sections input').length === 3);
+                check('the schedule tab holds the saved recurrence',
+                    document.querySelector('#standup-config-tabs-panel-schedule').textContent.indexOf('Start Date') >= 0);
+
+                // Change one thing the way a user would, then save.
+                const reportFormat = document.querySelector('#standup-config-report-format');
+                act(() => reportFormat.dispatchEvent(new dom.window.MouseEvent('click', {bubbles: true, cancelable: true})));
+                act(() => reportFormat.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'ArrowUp', bubbles: true, cancelable: true})));
+                act(() => reportFormat.dispatchEvent(new dom.window.KeyboardEvent('keydown', {key: 'Enter', bubbles: true, cancelable: true})));
+                check('the select took the new value',
+                    document.querySelector('#standup-config-report-format').textContent.indexOf('User Aggregated') >= 0);
+
+                act(() => Array.from(document.querySelectorAll('button')).filter((button) => button.textContent === 'Save')[0].click());
+
+                const post = stub.requests.filter((request) => request.method === 'post')[0];
+                check('saving posts to the config endpoint for this channel',
+                    Boolean(post) && post.url === 'https://mm.example.com/plugins/standup-raven/config?channel_id=channel_id',
+                    post && post.url);
+                check('saving carries the CSRF token', Boolean(post) && post.headers['X-CSRF-Token'] === 'csrf_token');
+                check('and the body is unchanged apart from what was edited',
+                    Boolean(post) && JSON.stringify(post.body) === JSON.stringify({...body, reportFormat: 'user_aggregated'}),
+                    post && JSON.stringify(post.body));
+
+                act(() => root.unmount());
+            }
+        }
+    }
+
     console.log('');
+
+    // Exit explicitly. React's scheduler keeps a MessageChannel open, and the
+    // modal's auto-close leaves a timer behind, so the event loop would stay
+    // alive after the last check has run and its result printed.
     if (failures.length) {
         console.log(`FAILED: ${failures.length} check(s): ${failures.join(', ')}`);
         process.exit(1);
     }
     console.log('all checks passed under React 19');
+    process.exit(0);
 }
 
 main().catch((error) => {

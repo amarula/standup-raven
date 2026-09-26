@@ -1,13 +1,28 @@
-@keyframes pop {
-  50% {
-    transform: scale(1.2);
-  }
+/* Only what the kit does not already provide: the scrolling list of section
+   rows, and the few bits of the modal's own furniture. The controls themselves
+   carry their styling with them. */
+
+.standup-config-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-height: 300px;
+  overflow-y: auto;
 }
 
-.standup-config-tab {
-  padding: 12px;
+.standup-config-to {
+  color: rgba(var(--center-channel-color-rgb, 63, 67, 80), 0.72);
+  font-size: 14px;
 }
 
-.nav-tabs > li.active > a:focus {
-  background-color: inherit;
+.standup-config-spinner {
+  display: block;
+  width: 80px;
+  margin: 50px auto;
+}
+
+.standup-config-readonly {
+  color: var(--center-channel-color, #3f4350);
+  text-align: center;
 }

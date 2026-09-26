@@ -6,16 +6,29 @@ import moment from 'moment';
 import {DATE_TIME_FORMAT} from '../reactBootstrapRRuleGenerator/constants';
 import RRuleGenerator from '../reactBootstrapRRuleGenerator';
 import '../reactBootstrapRRuleGenerator/styles/index.css';
-import configModalStyles from '../configModal/style';
 
 import './style.css';
 import reactStyles from './style';
+
+// The geometry this editor still lays itself out with, kept here rather than
+// borrowed from the config modal's module: the modal no longer has inline
+// styles to lend. Everything below is replaced when the editor is rebuilt on
+// the kit.
+const formRowStyle = {
+    formGroup: {
+        marginBottom: '20px',
+        minHeight: '35px',
+    },
+    controlLabel: {
+        paddingRight: '10px',
+        width: '180px',
+    },
+};
 
 class RRule extends React.PureComponent {
     constructor(props) {
         super(props);
         this.state = RRule.getInitialState();
-        this.configModalReactStyles = configModalStyles.getStyle();
     }
 
     static get frequencies() {
@@ -74,8 +87,8 @@ class RRule extends React.PureComponent {
     render() {
         return (
             <div>
-                <FormGroup style={this.configModalReactStyles.formGroup}>
-                    <ControlLabel style={this.configModalReactStyles.controlLabel}>
+                <FormGroup style={formRowStyle.formGroup}>
+                    <ControlLabel style={formRowStyle.controlLabel}>
                         {'Start Date:'}
                     </ControlLabel>
                     {/*TODO add local formatted date in value*/}
@@ -93,7 +106,7 @@ class RRule extends React.PureComponent {
                     </div>
                 </FormGroup>
                 <FormGroup
-                    style={this.configModalReactStyles.formGroup}
+                    style={formRowStyle.formGroup}
                     className={'standup-recurrence'}
                 >
                     <RRuleGenerator

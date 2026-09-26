@@ -1,176 +1,73 @@
 import * as React from 'react';
 import PropTypes from 'prop-types';
-import {MenuItem, SplitButton} from 'react-bootstrap';
+import {Select} from '../ui';
 import './style.css';
-import SentryBoundary from '../../SentryBoundary';
 
-class TimePicker extends (SentryBoundary, React.PureComponent) {
-    constructor(props) {
-        super(props);
-        this.state = TimePicker.getInitialState();
+const HOURS_MAX = 23;
+const MINUTES_MAX = 59;
 
-        this.onChange = this.onChange.bind(this);
-    }
-
-    static get HOURS_MAX_VALUE() {
-        // eslint-disable-next-line no-magic-numbers
-        return 23;
-    }
-
-    static get MINUTES_MAX_VALUE() {
-        // eslint-disable-next-line no-magic-numbers
-        return 59;
-    }
-
-    static isPristine(time) {
-        const pristineValues = [null, undefined, ''];
-
-        return pristineValues.indexOf(time ? time.trim() : time) > -1;
-    }
-
-    static getDerivedStateFromProps(nextProps, prevState) {
-        if (nextProps.time === prevState.time && nextProps.bsStyle === prevState.bsStyle) {
-            return null;
-        }
-
-        const time = nextProps.time || '00:00';
-        const components = time.split(':');
-
-        let hours;
-        let minutes;
-
-        if (components.length >= 2) {
-            hours = components[0].trim();
-            minutes = components[1].trim();
-        }
-
-        hours = parseInt(hours || 0, 10);
-        hours = Math.max(0, Math.min(TimePicker.HOURS_MAX_VALUE, hours));
-        // eslint-disable-next-line no-magic-numbers
-        hours = hours < 10 ? '0' + hours : String(hours);
-
-        minutes = parseInt(minutes || 0, 10);
-        minutes = Math.max(0, Math.min(TimePicker.MINUTES_MAX_VALUE, minutes));
-        // eslint-disable-next-line no-magic-numbers
-        minutes = minutes < 10 ? '0' + minutes : String(minutes);
-
-        return {
-            time,
-            hours,
-            minutes,
-            pristine: TimePicker.isPristine(),
-            bsStyle: nextProps.bsStyle ? nextProps.bsStyle : 'default',
-        };
-    }
-
-    static getInitialState() {
-        return {
-            time: '00:00',
-            hours: '00',
-            minutes: '00',
-            pristine: true,
-            bsStyle: 'default',
-        };
-    }
-
-    onChange() {
-        this.setState({
-            pristine: false,
-        });
-
-        if (this.props.onChange) {
-            const time = `${this.state.hours}:${this.state.minutes}`;
-            this.props.onChange(time);
-        }
-    }
-
-    render() {
-        // eslint-disable-next-line no-shadow
-        const style = getStyle();
-        const hoursMenuItems = [];
-        for (let i = 0; i <= TimePicker.HOURS_MAX_VALUE; ++i) {
-            // eslint-disable-next-line no-magic-numbers
-            const x = i < 10 ? '0' + i : String(i);
-            hoursMenuItems.push(
-                <MenuItem
-                    key={i.toString()}
-                    eventKey={x}
-                    active={this.state.hours === x}
-                >
-                    {x}
-                </MenuItem>);
-        }
-
-        const minutesMenuItems = [];
-        for (let i = 0; i <= TimePicker.MINUTES_MAX_VALUE; ++i) {
-            // eslint-disable-next-line no-magic-numbers
-            const x = i < 10 ? '0' + i : String(i);
-            minutesMenuItems.push(
-                <MenuItem
-                    key={i.toString()}
-                    eventKey={x}
-                    active={this.state.minutes === x}
-                >
-                    {x}
-                </MenuItem>);
-        }
-
-        return (
-            <div
-                className={'time-picker'}
-                style={{display: 'inline-block'}}
-            >
-                <SplitButton
-                    id={`${this.props.id}-hours`}
-                    bsStyle={this.state.bsStyle}
-                    className={'hours'}
-                    title={this.state.hours}
-                    onSelect={(evt) => {
-                        this.setState(
-                            {hours: evt},
-                            this.onChange,
-                        );
-                    }}
-                >
-                    {hoursMenuItems}
-                </SplitButton>
-                <span
-                    className={'time-separator'}
-                    style={style.timeSeparator}
-                >{':'}</span>
-                <SplitButton
-                    id={`${this.props.id}-minutes`}
-                    bsStyle={this.state.bsStyle}
-                    className={'minutes'}
-                    title={this.state.minutes}
-                    onSelect={(evt) => {
-                        this.setState(
-                            {minutes: evt},
-                            this.onChange,
-                        );
-                    }}
-                >
-                    {minutesMenuItems}
-                </SplitButton>
-            </div>
-        );
-    }
+function pad(value) {
+    return value < 10 ? `0${value}` : String(value);
 }
 
-function getStyle() {
+// Built once: 24 + 60 options that never change.
+const HOURS = Array.from({length: HOURS_MAX + 1}, (unused, hour) => ({value: pad(hour), label: pad(hour)}));
+const MINUTES = Array.from({length: MINUTES_MAX + 1}, (unused, minute) => ({value: pad(minute), label: pad(minute)}));
+
+// Anything unparseable becomes midnight rather than an empty field, and a value
+// out of range is clamped - the behaviour the old picker had.
+export function splitTime(time) {
+    const parts = String(time || '00:00').split(':');
+    const hours = parseInt(parts[0], 10);
+    const minutes = parseInt(parts[1], 10);
+
     return {
-        timeSeparator: {
-            paddingLeft: '5px',
-            paddingRight: '5px',
-        },
+        hours: pad(Math.max(0, Math.min(HOURS_MAX, Number.isNaN(hours) ? 0 : hours))),
+        minutes: pad(Math.max(0, Math.min(MINUTES_MAX, Number.isNaN(minutes) ? 0 : minutes))),
     };
+}
+
+// Controlled: what is shown comes from the `time` prop, and onChange fires only
+// when the user picks something. Nothing is echoed back on mount.
+function TimePicker({id, time, onChange, disabled = false, label = undefined}) {
+    const {hours, minutes} = splitTime(time);
+    const hoursLabel = label ? `${label}, hours` : 'Hours';
+    const minutesLabel = label ? `${label}, minutes` : 'Minutes';
+
+    return (
+        <div className={'standup-time-picker'}>
+            <Select
+                id={`${id}-hours`}
+                value={hours}
+                options={HOURS}
+                onChange={(value) => onChange(`${value}:${minutes}`)}
+                disabled={disabled}
+                ariaLabel={hoursLabel}
+            />
+            <span
+                className={'standup-time-picker-separator'}
+                aria-hidden={'true'}
+            >
+                {':'}
+            </span>
+            <Select
+                id={`${id}-minutes`}
+                value={minutes}
+                options={MINUTES}
+                onChange={(value) => onChange(`${hours}:${value}`)}
+                disabled={disabled}
+                ariaLabel={minutesLabel}
+            />
+        </div>
+    );
 }
 
 TimePicker.propTypes = {
     id: PropTypes.string.isRequired,
     time: PropTypes.string,
-    onChange: PropTypes.func,
-    bsStyle: PropTypes.string,
+    onChange: PropTypes.func.isRequired,
+    disabled: PropTypes.bool,
+    label: PropTypes.string,
 };
 
 export default TimePicker;

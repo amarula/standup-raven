@@ -4,6 +4,7 @@ import {Alert, Button, FormControl, FormGroup, InputGroup, Modal, OverlayTrigger
 import request from 'superagent';
 import Constants from '../../constants';
 import reactStyles from './style';
+import './style.css';
 import SentryBoundary from '../../SentryBoundary';
 import * as HttpStatus from 'http-status-codes';
 import Cookies from 'js-cookie';

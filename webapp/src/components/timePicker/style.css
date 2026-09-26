@@ -1,3 +1,19 @@
-.app__body .modal .dropdown .btn {
-  border: 1px solid;
+/* Two selects and the colon between them. The controls themselves are styled by
+   the kit, so there is nothing here about their border, height or focus ring -
+   which is what the previous version got wrong: it was the only place in the
+   plugin that gave a control a border of its own. */
+
+.standup-time-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.standup-time-picker .standup-select {
+  width: 72px;
+}
+
+.standup-time-picker-separator {
+  color: rgba(var(--center-channel-color-rgb, 63, 67, 80), 0.72);
+  font-size: 14px;
 }

@@ -13,5 +13,21 @@ import {standupModalChannelId} from '../src/reducer/standupModalReducer';
 import Selectors from '../src/selectors';
 import Constants from '../src/constants';
 import * as UI from '../src/components/ui';
+import ConfigModal from '../src/components/configModal/configModal.jsx';
+import {buildStandupConfigPayload} from '../src/components/configModal/payload';
+import TimePicker from '../src/components/timePicker/timePicker.jsx';
 
-export {React, ReactDOMClient, RRule, RRuleGenerator, StartOnDate, standupModalChannelId, Selectors, Constants, UI};
+export {
+    React,
+    ReactDOMClient,
+    RRule,
+    RRuleGenerator,
+    StartOnDate,
+    standupModalChannelId,
+    Selectors,
+    Constants,
+    UI,
+    ConfigModal,
+    buildStandupConfigPayload,
+    TimePicker,
+};
