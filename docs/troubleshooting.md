@@ -20,6 +20,13 @@
 
     You are not part of the current channel's standup. Make sure you are filling standup in the right channel or that you were correctly added to the channel's standup.
     
+* ##### A member left the company and now the standup reports them as never submitting.
+
+    When someone's Mattermost account is deactivated or deleted, their standup membership is dropped the next time
+    the plugin builds a notification or report for that channel, so they stop being counted as missing. This
+    happens on its own; there is nothing to run. `/standup removemembers` also accepts a user ID for an account
+    that can no longer be found by username.
+
 * ##### I'm seeing the "No members configured for this channel's standup" message on opening standup modal.
 
     Make sure you've added some members to the channel's standup.

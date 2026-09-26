@@ -2312,6 +2312,10 @@ func TestSendStandupReport_GetUserStandup_Error(t *testing.T) {
 		}, nil
 	})
 
+	// members are resolved before their standup is read, so that members whose
+	// accounts are gone can be spotted
+	mockAPI.On("GetUser", mock.AnythingOfType("string")).Return(&model.User{Id: "user_id"}, nil)
+
 	monkey.Patch(standup.GetUserStandup, func(userID, channelID string, date otime.OTime) (*standup.UserStandup, error) {
 		return nil, errors.New("")
 	})
@@ -2426,7 +2430,10 @@ func TestSendStandupReport_GetUserStandup_Nil(t *testing.T) {
 	mockAPI.AssertNumberOfCalls(t, "KVDelete", 4)
 }
 
-func TestSendStandupReport_GetUserStandup_Nil_GetUser_Error(t *testing.T) {
+// A member whose lookup fails for a reason other than "no such user" is skipped
+// for that run. This used to fail the whole report, which meant one unreachable
+// account silenced the standup for the entire channel.
+func TestSendStandupReport_UnreachableMemberIsSkipped(t *testing.T) {
 	defer TearDown()
 	mockAPI := setUp()
 	baseMock(mockAPI)
@@ -2473,7 +2480,7 @@ func TestSendStandupReport_GetUserStandup_Nil_GetUser_Error(t *testing.T) {
 	})
 
 	err := SendStandupReport([]string{"channel_1", "channel_2"}, otime.Now("Asia/Kolkata"), ReportVisibilityPrivate, "user_1", false)
-	assert.NotNil(t, err, "should produce any error as GetUser failed")
+	assert.Nil(t, err, "the report still goes out for everyone else")
 }
 
 func TestSendStandupReport_ReportFormatUserAggregated(t *testing.T) {
@@ -3874,5 +3881,68 @@ func Test_generateTypeAggregatedStandupReport_ListsOutOfOfficeSeparately(t *test
 	if assert.NotNil(t, report) {
 		assert.Contains(t, report.Message, "alice has not submitted their standup")
 		assert.Contains(t, report.Message, "bob is out of office")
+	}
+}
+
+func Test_accountIsGone(t *testing.T) {
+	tests := []struct {
+		user   *model.User
+		appErr *model.AppError
+		name   string
+		expect bool
+	}{
+		{
+			name:   "a purged account",
+			appErr: &model.AppError{StatusCode: http.StatusNotFound, Message: "no such user"},
+			expect: true,
+		},
+		{
+			name:   "a deactivated account",
+			user:   &model.User{Id: "user_id", DeleteAt: 1700000000000},
+			expect: true,
+		},
+		{
+			name:   "an account that is there",
+			user:   &model.User{Id: "user_id"},
+			expect: false,
+		},
+		{
+			name:   "a lookup that failed for another reason",
+			appErr: &model.AppError{StatusCode: http.StatusInternalServerError, Message: "boom"},
+			expect: false,
+		},
+		{
+			name:   "no user and no error",
+			expect: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.expect, accountIsGone(test.user, test.appErr))
+		})
+	}
+}
+
+func Test_dropGoneMembers(t *testing.T) {
+	defer TearDown()
+	mockAPI := setUp()
+	baseMock(mockAPI)
+
+	storedConfig := `{"channelId":"channel_id","members":["user_id_1","user_id_2"],"scheduleEnabled":false}`
+
+	var saved []byte
+	mockAPI.On("KVGet", util.GetKeyHash("standup_config_channel_id")).Return([]byte(storedConfig), nil)
+	mockAPI.On("KVSet", mock.AnythingOfType("string"), mock.Anything).Run(func(args mock.Arguments) {
+		saved = args.Get(1).([]byte)
+	}).Return(nil)
+	mockAPI.On("GetChannel", "channel_id").Return(&model.Channel{}, nil)
+	mockAPI.On("UpdateChannel", mock.Anything).Return(nil, nil)
+
+	dropGoneMembers("channel_id", []string{"user_id_2"})
+
+	if assert.NotNil(t, saved) {
+		assert.NotContains(t, string(saved), "user_id_2", "the departed member is dropped")
+		assert.Contains(t, string(saved), "user_id_1", "the rest of the standup is left alone")
 	}
 }

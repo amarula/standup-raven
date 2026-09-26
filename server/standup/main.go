@@ -387,6 +387,36 @@ func SaveUserStandup(userStandup *UserStandup) error {
 	return nil
 }
 
+// RemoveMembers drops the given users from a channel's standup membership and
+// reports the ones it actually removed. It writes nothing when there was nothing
+// to remove.
+func RemoveMembers(channelID string, userIDs []string) ([]string, error) {
+	if len(userIDs) == 0 {
+		return nil, nil
+	}
+
+	standupConfig, err := GetStandupConfig(channelID)
+	if err != nil {
+		return nil, err
+	}
+	if standupConfig == nil {
+		return nil, errors.New("standup not configured for channel: " + channelID)
+	}
+
+	membersAfterRemoval := util.Difference(standupConfig.Members, userIDs)
+	membersRemoved := util.Difference(standupConfig.Members, membersAfterRemoval)
+	if len(membersRemoved) == 0 {
+		return nil, nil
+	}
+
+	standupConfig.Members = membersAfterRemoval
+	if _, err := SaveStandupConfig(standupConfig); err != nil {
+		return nil, err
+	}
+
+	return membersRemoved, nil
+}
+
 // GetUserStandup fetches a user's standup for the specified channel and date.
 func GetUserStandup(userID, channelID string, date otime.OTime) (*UserStandup, error) {
 	key := date.GetDateString() + "_" + channelID + userID

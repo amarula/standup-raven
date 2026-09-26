@@ -3,6 +3,7 @@ package notification
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"sort"
 	"strings"
 	"time"
@@ -142,33 +143,48 @@ func SendStandupReport(channelIDs []string, date otime.OTime, visibility string,
 		respectOutOfOffice := config.GetConfig() != nil && config.GetConfig().RespectOutOfOffice
 		statusCache := map[string]bool{}
 
+		var membersGone []string
+
 		for _, userID := range standupConfig.Members {
-			userStandup, err := standup.GetUserStandup(userID, channelID, date)
-			if err != nil {
-				return err
-			} else if userStandup == nil {
-				// if user has not submitted standup
-				logger.Info("Could not fetch standup for user: "+userID, nil)
+			user, appErr := config.Mattermost.GetUser(userID)
+			if accountIsGone(user, appErr) {
+				membersGone = append(membersGone, userID)
 
-				user, appErr := config.Mattermost.GetUser(userID)
-				if appErr != nil {
-					logger.Error("Couldn't fetch user", appErr, map[string]interface{}{"userID": userID})
-					return errors.New(appErr.Error())
-				}
-
-				if respectOutOfOffice && isOutOfOffice(userID, statusCache) {
-					membersOutOfOffice = append(membersOutOfOffice, user.Username)
-
-					continue
-				}
-
-				membersNoStandup = append(membersNoStandup, user.Username)
+				continue
+			}
+			if appErr != nil {
+				// Not "no such user", so the member is kept and simply skipped
+				// for this run: one member missing from a report beats no report
+				// at all, which is what a fatal error here used to mean.
+				logger.Error("Couldn't fetch user", appErr, map[string]interface{}{"userID": userID})
 
 				continue
 			}
 
-			members = append(members, userStandup)
+			userStandup, err := standup.GetUserStandup(userID, channelID, date)
+			if err != nil {
+				return err
+			}
+
+			if userStandup != nil {
+				members = append(members, userStandup)
+
+				continue
+			}
+
+			// if user has not submitted standup
+			logger.Info("Could not fetch standup for user: "+userID, nil)
+
+			if respectOutOfOffice && isOutOfOffice(userID, statusCache) {
+				membersOutOfOffice = append(membersOutOfOffice, user.Username)
+
+				continue
+			}
+
+			membersNoStandup = append(membersNoStandup, user.Username)
 		}
+
+		dropGoneMembers(channelID, membersGone)
 
 		members, err = sortUserStandups(members)
 		if err != nil {
@@ -245,6 +261,41 @@ func generateReport(
 	}
 
 	return post, err
+}
+
+// accountIsGone reports whether a member's account can no longer take part: it
+// has been purged (the lookup reports that it does not exist) or deactivated.
+// Such a member can never submit a standup, so the standup stops expecting one
+// rather than reporting them as missing for ever.
+func accountIsGone(user *model.User, appErr *model.AppError) bool {
+	if appErr != nil {
+		return appErr.StatusCode == http.StatusNotFound
+	}
+
+	return user == nil || user.DeleteAt > 0
+}
+
+// dropGoneMembers removes members whose accounts are gone from a channel's
+// standup, logging what it removed.
+func dropGoneMembers(channelID string, userIDs []string) {
+	if len(userIDs) == 0 {
+		return
+	}
+
+	removed, err := standup.RemoveMembers(channelID, userIDs)
+	if err != nil {
+		logger.Error("Couldn't drop members whose accounts are gone", err, map[string]interface{}{"channelID": channelID})
+
+		return
+	}
+
+	if len(removed) > 0 {
+		logger.Info(fmt.Sprintf(
+			"Dropped %d member(s) whose accounts are gone from the standup of channel %s",
+			len(removed),
+			channelID,
+		), nil)
+	}
 }
 
 // isOutOfOffice reports whether a member is away. This uses Mattermost's own Out
@@ -509,22 +560,32 @@ func sendWindowCloseNotification(channelIDs []string) error {
 		logger.Debug("Fetching members with pending standup reports", nil)
 
 		var usersPendingStandup []string
+		var membersGone []string
+
 		for _, userID := range standupConfig.Members {
+			user, appErr := config.Mattermost.GetUser(userID)
+			if accountIsGone(user, appErr) {
+				membersGone = append(membersGone, userID)
+
+				continue
+			}
+			if appErr != nil {
+				logger.Error("Couldn't find user with user ID", appErr, map[string]interface{}{"userID": userID})
+
+				continue
+			}
+
 			userStandup, err := standup.GetUserStandup(userID, channelID, otime.Now(standupConfig.Timezone))
 			if err != nil {
 				return err
 			}
 
 			if userStandup == nil {
-				user, err := config.Mattermost.GetUser(userID)
-				if err != nil {
-					logger.Error("Couldn't find user with user ID", err, map[string]interface{}{"userID": userID})
-					return err
-				}
-
 				usersPendingStandup = append(usersPendingStandup, user.Username)
 			}
 		}
+
+		dropGoneMembers(channelID, membersGone)
 
 		// no need to send reminder if everyone has filled their standup
 		if len(usersPendingStandup) == 0 {
@@ -697,8 +758,15 @@ func generateUserAggregatedStandupReport(
 func getUserDisplayName(userID string) (string, error) {
 	user, appErr := config.Mattermost.GetUser(userID)
 	if appErr != nil {
+		if accountIsGone(nil, appErr) {
+			// Their standup is still worth reporting, even though the account it
+			// belonged to is gone, so show it under the user ID.
+			return userID, nil
+		}
+
 		return "", errors.New(appErr.Error())
 	}
+
 	return user.GetDisplayName(model.ShowFullName), nil
 }
 

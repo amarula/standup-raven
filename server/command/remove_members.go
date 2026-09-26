@@ -64,12 +64,24 @@ func validateRemoveMembers(args []string, context Context) (*model.CommandRespon
 	for _, username := range args {
 		usernameToUse := strings.TrimPrefix(username, "@")
 		user, err := config.Mattermost.GetUserByUsername(usernameToUse)
-		if err != nil {
-			usernamesNotFound = append(usernamesNotFound, usernameToUse)
-		} else {
+		if err == nil {
 			userIDs = append(userIDs, user.Id)
 			usernamesByUserID[user.Id] = user.Username
+
+			continue
 		}
+
+		// A member whose account no longer exists cannot be looked up by
+		// username, and that username may since belong to somebody else, so
+		// accept their user ID when it names a member of this standup.
+		if memberID := memberIDInStandup(usernameToUse, context.CommandArgs.ChannelId); memberID != "" {
+			userIDs = append(userIDs, memberID)
+			usernamesByUserID[memberID] = memberID
+
+			continue
+		}
+
+		usernamesNotFound = append(usernamesNotFound, usernameToUse)
 	}
 
 	// saving formatted usernames to context for later use
@@ -110,6 +122,7 @@ func executeRemoveMembers(args []string, context Context) (*model.CommandRespons
 
 	if len(context.Props["usernamesNotFound"].([]string)) > 0 {
 		text += "\nUsers not found: " + strings.Join(context.Props["usernamesNotFound"].([]string), ", ")
+		text += "\nMembers whose accounts no longer exist are dropped from the standup on their own, or can be removed by user ID."
 	}
 
 	return &model.CommandResponse{
@@ -141,4 +154,21 @@ func removeMembersFromStandup(userIDs []string, channelID string) ([]string, []s
 	}
 
 	return membersNotInStandup, membersRemovedFromStandup, nil
+}
+
+// memberIDInStandup returns the argument when it is the user ID of a member of
+// the channel's standup. It is how a member whose account no longer exists is
+// removed: the account cannot be found by username, but the standup still holds
+// its ID.
+func memberIDInStandup(argument, channelID string) string {
+	standupConfig, err := standup.GetStandupConfig(channelID)
+	if err != nil || standupConfig == nil {
+		return ""
+	}
+
+	if funk.Contains(standupConfig.Members, argument) {
+		return argument
+	}
+
+	return ""
 }

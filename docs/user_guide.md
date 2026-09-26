@@ -46,6 +46,14 @@ Just follow these steps and you'll be ready in no time.
         
     You can specify multiple members together, separated by a space. Members who are not present in the channel will
     be automatically added to the channel as well.
+
+1. **Removing standup members** - The following slash command removes members from the channel standup -
+
+        /standup removemembers [username 1] [username 2]...
+
+    Members are not removed from the channel itself. If a member's account has since been deactivated or deleted,
+    the command cannot find it by username; the standup drops such members on its own the next time it builds a
+    report, or they can be removed by their user ID.
     
 1. **Filling your standup** - Once all the configuration is complete, click on the Standup Raven button in
     channel header to bring up a modal for filling out your standup.

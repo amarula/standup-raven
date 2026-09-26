@@ -1273,3 +1273,56 @@ func TestArchiveStandupChannels(t *testing.T) {
 
 	assert.Nil(t, ArchiveStandupChannels("channel_1"))
 }
+
+func TestRemoveMembers(t *testing.T) {
+	defer TearDown()
+
+	storedConfig := `{"channelId":"channel_id","members":["user_id_1","user_id_2"],"scheduleEnabled":false}`
+
+	var saved []byte
+	newMocks := func() *plugintest.API {
+		mockAPI := baseMock()
+		mockAPI.On("KVGet", util.GetKeyHash("standup_config_channel_id")).Return([]byte(storedConfig), nil)
+		mockAPI.On("KVSet", mock.AnythingOfType("string"), mock.Anything).Run(func(args mock.Arguments) {
+			saved = args.Get(1).([]byte)
+		}).Return(nil)
+		mockAPI.On("GetChannel", "channel_id").Return(&model.Channel{}, nil)
+		mockAPI.On("UpdateChannel", mock.Anything).Return(nil, nil)
+
+		return mockAPI
+	}
+
+	t.Run("drops the members that are there and reports them", func(t *testing.T) {
+		saved = nil
+		newMocks()
+
+		removed, err := RemoveMembers("channel_id", []string{"user_id_2", "user_id_never_a_member"})
+
+		assert.Nil(t, err)
+		assert.Equal(t, []string{"user_id_2"}, removed, "only members that were in the standup are reported")
+		if assert.NotNil(t, saved) {
+			assert.Contains(t, string(saved), "user_id_1", "the other member is kept")
+			assert.NotContains(t, string(saved), "user_id_2")
+		}
+	})
+
+	t.Run("writes nothing when none of the members are in the standup", func(t *testing.T) {
+		saved = nil
+		newMocks()
+
+		removed, err := RemoveMembers("channel_id", []string{"user_id_never_a_member"})
+
+		assert.Nil(t, err)
+		assert.Empty(t, removed)
+		assert.Nil(t, saved, "nothing changed, so nothing is written")
+	})
+
+	t.Run("reports a channel without a standup", func(t *testing.T) {
+		mockAPI := baseMock()
+		mockAPI.On("KVGet", util.GetKeyHash("standup_config_channel_id")).Return(nil, nil)
+
+		_, err := RemoveMembers("channel_id", []string{"user_id_1"})
+
+		assert.NotNil(t, err)
+	})
+}
