@@ -21,11 +21,16 @@ func validateCommandHelp(args []string, context Context) (*model.CommandResponse
 }
 
 func executeCommandHelp(args []string, context Context) (*model.CommandResponse, *model.AppError) {
+	// This list cannot be read from the command registry: the registry's own
+	// initialisation refers to this function, so reading it here is an
+	// initialisation cycle. TestCommandHelp_ListsEveryRegisteredCommand keeps
+	// the two in step instead.
 	helpText := generateHelpText([]*Config{
 		commandConfig(),
 		commandAddMembers(),
 		commandRemoveMembers(),
 		commandStandup(),
+		commandUpdate(),
 		commandHelp(),
 	})
 

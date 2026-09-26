@@ -52,4 +52,14 @@ Just follow these steps and you'll be ready in no time.
     
     Once saved, you can click on the Standup Raven button again to bring back your filled standup, allowing you
     to make updates to it.
+
+1. **Adding to your standup without the modal** - The following slash command adds a line to one section of
+   today's standup, keeping whatever is already there -
+
+        /standup update <section> <what you want to record>
+
+    For example, `/standup update today reviewing the login fix`. Section names are matched against the
+    sections configured for the channel, ignoring case, and a name that contains spaces can be quoted:
+    `/standup update "in progress" waiting on the API`. The command replies with the section as it now reads.
+
      
