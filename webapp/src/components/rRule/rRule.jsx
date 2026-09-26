@@ -1,8 +1,9 @@
 import * as React from 'react';
 import PropTypes from 'prop-types';
 import {ControlLabel, FormGroup} from 'react-bootstrap';
-import DatePicker from 'react-16-bootstrap-date-picker';
+import moment from 'moment';
 
+import {DATE_TIME_FORMAT} from '../reactBootstrapRRuleGenerator/constants';
 import RRuleGenerator from '../reactBootstrapRRuleGenerator';
 import '../reactBootstrapRRuleGenerator/styles/index.css';
 import configModalStyles from '../configModal/style';
@@ -53,7 +54,12 @@ class RRule extends React.PureComponent {
         this.sendChanges(rrule, this.state.startDate);
     };
 
-    startDateChangeHandler = (isoDate) => {
+    startDateChangeHandler = (event) => {
+        // The input reports a YYYY-MM-DD date, while the plugin API further
+        // down expects an ISO timestamp. Anchor it to UTC so that the date
+        // picked is the date saved whatever the browser's timezone.
+        const isoDate = moment.utc(event.target.value, DATE_TIME_FORMAT).toISOString();
+
         this.setState({
             startDate: isoDate,
         });
@@ -77,11 +83,12 @@ class RRule extends React.PureComponent {
                         className={'recurrence-start-date'}
                         style={reactStyles.getStyle().recurrenceDatepicker}
                     >
-                        <DatePicker
+                        <input
+                            type='date'
+                            className='form-control'
                             id={'recurrence-start-date-picker'}
-                            value={this.state.startDate}
+                            value={moment(this.state.startDate).format(DATE_TIME_FORMAT)}
                             onChange={this.startDateChangeHandler}
-                            showClearButton={false}
                         />
                     </div>
                 </FormGroup>
@@ -97,7 +104,6 @@ class RRule extends React.PureComponent {
                         }}
                         onChange={this.rruleChangeHandler}
                         value={this.state.rrule}
-                        customCalendar={DatePicker}
                         repeatDropdownStyle={{width: '300px'}}
                         weeklyFrequencyInputStyle={{width: '60px', textAlign: 'center'}}
                         monthlyFrequencyInputStyle={{width: '60px', textAlign: 'center'}}

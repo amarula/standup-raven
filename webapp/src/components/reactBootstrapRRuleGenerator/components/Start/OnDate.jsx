@@ -1,8 +1,5 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import moment from 'moment';
-import DateTime from 'react-datetime';
-import 'moment/min/locales';
 
 import {DATE_TIME_FORMAT} from '../../constants/index';
 import translateLabel from '../../utils/translateLabel';
@@ -44,31 +41,28 @@ const StartOnDate = ({
                             handleChange(editedEvent);
                         }}
                     /> :
-                    <DateTime
-                        {...calendarAttributes}
-                        inputProps={
-                            {
-                                id: `${id}-datetime`,
-                                name: 'start.onDate.date',
-                                readOnly: true,
-                            }
-                        }
-                        locale={translateLabel(translations, 'locale')}
-                        timeFormat={false}
-                        viewMode='days'
-                        closeOnSelect={true}
-                        closeOnTab={true}
-                        required={true}
-                        onChange={(inputDate) => {
+                    // A native date input rather than a picker component: the
+                    // value handled here is already YYYY-MM-DD, and the pickers
+                    // that were used before call ReactDOM.findDOMNode and
+                    // createReactClass, both removed in React 19.
+                    <input
+                        type='date'
+                        className='form-control'
+                        id={`${id}-datetime`}
+                        name='start.onDate.date'
+                        aria-label={calendarAttributes['aria-label']}
+                        value={date}
+                        onChange={(event) => {
                             const editedEvent = {
                                 target: {
-                                    value: moment(inputDate).format(DATE_TIME_FORMAT),
+                                    value: event.target.value,
                                     name: 'start.onDate.date',
                                 },
                             };
 
                             handleChange(editedEvent);
                         }}
+                        required={true}
                     />
             }
         </div>

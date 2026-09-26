@@ -90,7 +90,7 @@ Then in your terminal:
 * `cd path/to/your/clone`
 * `make vendor` to fetch the server dependencies
 * `make .webinstall` to fetch the webapp dependencies
-* `make test` to run the server tests
+* `make test` to run the server and webapp tests
 * `make check-style` to run both linters
 
 And you should be ready to go!

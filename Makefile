@@ -28,7 +28,7 @@ WEBAPP_DSN ?=
 ICON_DATA  = data:image/svg+xml;base64,$(shell base64 $(ICON_FILE) | tr -d '\n')
 LDFLAGS    = -X 'main.PluginVersion=$(PLUGINVERSION)' -X 'main.SentryServerDSN=$(SERVER_DSN)' -X 'main.SentryWebappDSN=$(WEBAPP_DSN)' -X 'main.EncodedPluginIcon=$(ICON_DATA)'
 
-.PHONY: default build test test-server coverage dist buildserver buildwebapp package \
+.PHONY: default build test test-server test-webapp coverage dist buildserver buildwebapp package \
 	check-style check-style-server check-style-webapp fix-style fix-style-server \
 	fix-style-webapp vendor clean run stop deploy
 
@@ -75,7 +75,11 @@ test-server: vendor
 	echo Running server tests
 	$(GO) test -gcflags=-l -v -coverprofile=coverage.txt ./...
 
-test: test-server
+test: test-server test-webapp
+
+test-webapp: .webinstall
+	echo Running webapp tests
+	cd webapp && yarn run test
 
 coverage: test-server
 	$(GO) tool cover -html=coverage.txt -o coverage.html

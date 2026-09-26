@@ -1,16 +1,14 @@
 import moment from 'moment';
 
 const computeStart = ({onDate: {date}}) => {
-    let result;
-    // verify that incoming date is valid
-    // by seeing if it can be converted into a moment object.
-    // if not, then create a new date
-    if (!moment.isMoment(moment(date))) {
-        result = new Date().setMilliseconds(0);
-    }
+    // moment() always returns a moment, so the previous check,
+    // moment.isMoment(moment(date)), always passed and the picked date was
+    // thrown away in favour of the current time. Check the parsed date instead,
+    // keeping the "now" fallback for a date that cannot be used.
+    const start = moment(date);
 
     return {
-        dtstart: moment(result).toDate(),
+        dtstart: (start.isValid() ? start : moment()).toDate(),
     };
 };
 

@@ -66,6 +66,11 @@ jobs:
       - name: Lint
         run: make check-style-webapp
 
+      - name: Test
+        # Mounts the recurrence UI on React 19, the version the web app moves
+        # to in v12, to catch use of APIs React 19 removed.
+        run: make test-webapp
+
       - name: Build bundle
         run: make buildwebapp
 

@@ -1,8 +1,5 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import moment from 'moment';
-import DateTime from 'react-datetime';
-import 'moment/min/locales';
 
 import {DATE_TIME_FORMAT} from '../../constants/index';
 import translateLabel from '../../utils/translateLabel';
@@ -45,31 +42,26 @@ const EndOnDate = ({
                             handleChange(editedEvent);
                         }}
                     /> :
-                    <DateTime
-                        {...calendarAttributes}
-                        inputProps={
-                            {
-                                id: `${id}-datetime`,
-                                name: 'end.onDate.date',
-                                readOnly: true,
-                            }
-                        }
-                        locale={translateLabel(translations, 'locale')}
-                        timeFormat={false}
-                        viewMode='days'
-                        closeOnSelect={true}
-                        closeOnTab={true}
-                        required={true}
-                        onChange={(inputDate) => {
+                    // See the note in Start/OnDate.jsx: a native date input
+                    // replaces a picker that React 19 can no longer run.
+                    <input
+                        type='date'
+                        className='form-control'
+                        id={`${id}-datetime`}
+                        name='end.onDate.date'
+                        aria-label={calendarAttributes['aria-label']}
+                        value={date}
+                        onChange={(event) => {
                             const editedEvent = {
                                 target: {
-                                    value: moment(inputDate).format(DATE_TIME_FORMAT),
+                                    value: event.target.value,
                                     name: 'end.onDate.date',
                                 },
                             };
 
                             handleChange(editedEvent);
                         }}
+                        required={true}
                     />
             }
         </div>
