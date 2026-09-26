@@ -48,5 +48,6 @@ var commands = map[string]*Config{
 	commandRemoveMembers().AutocompleteData.Trigger: commandRemoveMembers(),
 	commandStandup().AutocompleteData.Trigger:       commandStandup(),
 	commandUpdate().AutocompleteData.Trigger:        commandUpdate(),
+	commandWeek().AutocompleteData.Trigger:          commandWeek(),
 	commandHelp().AutocompleteData.Trigger:          commandHelp(),
 }

@@ -31,6 +31,7 @@ func executeCommandHelp(args []string, context Context) (*model.CommandResponse,
 		commandRemoveMembers(),
 		commandStandup(),
 		commandUpdate(),
+		commandWeek(),
 		commandHelp(),
 	})
 
