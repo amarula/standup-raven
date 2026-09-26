@@ -737,6 +737,12 @@ async function main() {
                 check('the schedule tab holds the saved recurrence',
                     document.querySelector('#standup-config-tabs-panel-schedule').textContent.indexOf('Start Date') >= 0);
 
+                // Two controls sit side by side in each section row, and
+                // nothing used to say which was which.
+                const header = document.querySelector('.standup-config-section-header');
+                check('the section rows say which part is the name and which the answer',
+                    Boolean(header) && header.textContent === 'Section nameAnswer', header && header.textContent);
+
                 const sectionType = document.querySelector('#standup-section-type-1');
                 check('every section row says what kind of answer it wants',
                     sectionType.textContent.indexOf('Text') >= 0, sectionType.textContent);

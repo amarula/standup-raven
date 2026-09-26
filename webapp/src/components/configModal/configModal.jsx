@@ -331,10 +331,17 @@ class ConfigModal extends React.Component {
                 </Field>
                 <Field
                     label={'Sections'}
-                    description={'The prompts each member fills in, in the order they appear.'}
+                    description={'The prompts each member fills in, in the order they appear. The name is what they see in the standup; the kind of answer is how they fill it in.'}
                     disabled={disabled}
                 >
                     <div className={'standup-config-sections'}>
+                        <div
+                            className={'standup-config-section-header'}
+                            aria-hidden={'true'}
+                        >
+                            <span>{'Section name'}</span>
+                            <span>{'Answer'}</span>
+                        </div>
                         {this.renderSections()}
                     </div>
                 </Field>

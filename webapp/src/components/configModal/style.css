@@ -11,6 +11,24 @@
   overflow-y: auto;
 }
 
+.standup-config-section-header {
+  display: flex;
+  gap: 8px;
+  padding-bottom: 2px;
+  color: rgba(var(--center-channel-color-rgb, 63, 67, 80), 0.72);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.standup-config-section-header span:first-child {
+  flex: 1 1 auto;
+}
+
+.standup-config-section-header span:last-child {
+  flex: 0 0 auto;
+  width: 132px;
+}
+
 .standup-config-section {
   display: flex;
   align-items: center;
