@@ -31,6 +31,9 @@ var (
 	version3_3_0          = "3.3.0"
 	version3_3_1          = "3.3.1"
 	version3_3_2          = "3.3.2"
+	version4_0_0          = "4.0.0"
+	version4_1_0          = "4.1.0"
+	version4_1_1          = "4.1.1"
 )
 
 // indicates from what all versions can the plugin
@@ -55,6 +58,9 @@ var upgradeCompatibility = map[string][]string{
 	version3_3_0: {version3_2_2, version3_2_1, version3_2_0, version3_1_1, version3_1_0, version3_0_2, version3_0_1, version3_0_0, version2_0_0, version1_5_0},
 	version3_3_1: {version3_3_0, version3_2_2, version3_2_1, version3_2_0, version3_1_1, version3_1_0, version3_0_2, version3_0_1, version3_0_0, version2_0_0, version1_5_0},
 	version3_3_2: {version3_3_1, version3_3_0, version3_2_2, version3_2_1, version3_2_0, version3_1_1, version3_1_0, version3_0_2, version3_0_1, version3_0_0, version2_0_0, version1_5_0},
+	version4_0_0: {version3_3_2, version3_3_1, version3_3_0, version3_2_2, version3_2_1, version3_2_0, version3_1_1, version3_1_0, version3_0_2, version3_0_1, version3_0_0, version2_0_0, version1_5_0},
+	version4_1_0: {version4_0_0, version3_3_2, version3_3_1, version3_3_0, version3_2_2, version3_2_1, version3_2_0, version3_1_1, version3_1_0, version3_0_2, version3_0_1, version3_0_0, version2_0_0, version1_5_0},
+	version4_1_1: {version4_1_0, version4_0_0, version3_3_2, version3_3_1, version3_3_0, version3_2_2, version3_2_1, version3_2_0, version3_1_1, version3_1_0, version3_0_2, version3_0_1, version3_0_0, version2_0_0, version1_5_0},
 }
 
 type Migration func(fromVersion string) error
@@ -73,6 +79,9 @@ var migrations = []Migration{
 	upgradeDatabaseToVersion3_3_0,
 	upgradeDatabaseToVersion3_3_1,
 	upgradeDatabaseToVersion3_3_2,
+	upgradeDatabaseToVersion4_0_0,
+	upgradeDatabaseToVersion4_1_0,
+	upgradeDatabaseToVersion4_1_1,
 }
 
 // DatabaseMigration gets the current database schema version and performs
@@ -100,11 +109,18 @@ func DatabaseMigration() error {
 
 	if !isUpgradeCompatible(schemaVersion, pluginVersion) {
 		msg := fmt.Sprintf(
-			"Cannot upgrade Standup Raven from version %s to %s. Please upgrade first to one of versions %s",
+			"Cannot upgrade Standup Raven from version %s to %s.",
 			schemaVersion,
 			pluginVersion,
-			strings.Join(upgradeCompatibility[pluginVersion], ", "),
 		)
+
+		if canUpgradeFrom := upgradeCompatibility[pluginVersion]; len(canUpgradeFrom) > 0 {
+			msg += fmt.Sprintf(" Please upgrade first to one of versions %s", strings.Join(canUpgradeFrom, ", "))
+		} else {
+			// An empty list means this build is not in the upgrade table at all,
+			// which is a packaging mistake rather than something the admin did.
+			msg += " This build does not name the versions it can upgrade from; please report it to the plugin's maintainers."
+		}
 
 		logger.Error(msg, nil, nil)
 		return errors.New(msg)
