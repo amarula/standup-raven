@@ -69,6 +69,7 @@ type Configuration struct {
 	PermissionSchemaEnabled bool   `json:"permissionSchemaEnabled"`
 	EnableErrorReporting    bool   `json:"enableErrorReporting"`
 	RespectOutOfOffice      bool   `json:"respectOutOfOffice"`
+	RolloverWarnings        bool   `json:"rolloverWarnings"`
 }
 
 func GetConfig() *Configuration {

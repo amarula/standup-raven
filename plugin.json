@@ -48,6 +48,13 @@
         "type": "bool",
         "default": true,
         "help_text": "List members who are marked Out Of Office separately in standup reports, instead of counting them among those who have not submitted."
+      },
+      {
+        "key": "rolloverWarnings",
+        "display_name": "Rollover Warnings",
+        "type": "bool",
+        "default": true,
+        "help_text": "When a member reports what looks like the same item under the same section for three days running, send them a direct message asking whether it is stuck. Lines are matched by the words they share rather than exactly, so wording can change between days. Each member is asked at most once a week per channel."
       }
     ]
   }

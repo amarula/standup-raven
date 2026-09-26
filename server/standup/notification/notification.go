@@ -60,6 +60,12 @@ func SendNotificationsAndReports() error {
 		return err
 	}
 
+	// The window closing is what makes the day's lines final, so the rollover
+	// check runs for exactly the channels that just closed.
+	if err := sendRolloverWarnings(pendingWindowCloseNotificationChannelIDs); err != nil {
+		return err
+	}
+
 	return nil
 }
 

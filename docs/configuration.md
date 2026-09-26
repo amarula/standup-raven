@@ -9,3 +9,4 @@
 * `Work Week End`: Day on which your work week ends.
 * `Enable Permission Schema` - Requires Mattermost Enterprise Edition. If enabled, only channel admins, team admins or system admins are allowed to configure standup for a channel or update it.
 * `Respect Out Of Office` - When enabled, members whose Mattermost status is *Out Of Office* are listed separately in standup reports instead of being counted among those who have not submitted.
+* `Rollover Warnings` - When enabled, a member who reports what looks like the same item under the same section for three days running is sent a direct message asking whether it is stuck. Lines are matched by the words they share rather than exactly, so wording can change between days, while items described in entirely different words are not recognised. Each member is asked at most once a week per channel.

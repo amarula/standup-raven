@@ -66,4 +66,12 @@ Just follow these steps and you'll be ready in no time.
     separately, so they are not listed among those who have not submitted. This can be turned off in the
     plugin's system console settings.
 
+1. **Items that have not moved** - When what looks like the same item appears under the same section for
+    three days running, Standup Raven sends that member a direct message asking whether it is stuck, and
+    shows the command that adds it to today's standup. Wording can change between days: lines are compared
+    by the words they have in common, so "waiting on the API team" and "API team still not responding"
+    count as the same item, while different pull request numbers do not. Items described in entirely
+    different words are not recognised. Nobody is asked more than once a week per channel, and the
+    behaviour can be turned off in the plugin's system console settings.
+
      
