@@ -29,3 +29,8 @@ func upgradeDatabaseToVersion4_2_0(fromVersion string) error {
 func upgradeDatabaseToVersion4_2_1(fromVersion string) error {
 	return updateSchemaVersion(version4_2_1)
 }
+
+// 4.2.2 fixes the tab panels in the web app; nothing stored changes shape.
+func upgradeDatabaseToVersion4_2_2(fromVersion string) error {
+	return updateSchemaVersion(version4_2_2)
+}
