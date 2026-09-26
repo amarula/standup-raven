@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -161,6 +162,46 @@ func (sc *Config) SectionType(sectionTitle string) string {
 	}
 
 	return SectionTypeText
+}
+
+// An issue ID as YouTrack writes them: an uppercase project key, a hyphen, a
+// number.
+var issueIDRegex = regexp.MustCompile(`^[A-Z][A-Z0-9]*-\d+$`)
+
+// normalizeIssueSections puts every issue section into the one shape the rest of
+// the plugin reads: uppercased, deduplicated, in a stable order, and holding
+// nothing that is not an ID.
+//
+// Anything that does not look like an ID is dropped rather than refused. A
+// mistyped reference costs one missing line in a report; a standup that will not
+// save costs the whole day's standup, and someone would have to work out why.
+func normalizeIssueSections(standupConfig *Config, userStandup *UserStandup) {
+	for sectionTitle, lines := range userStandup.Standup {
+		if lines == nil || standupConfig.SectionType(sectionTitle) != SectionTypeIssues {
+			continue
+		}
+
+		seen := make(map[string]bool, len(*lines))
+		ids := make([]string, 0, len(*lines))
+
+		for _, line := range *lines {
+			// Commas and whitespace both separate, so a section filled in as
+			// "AXELERA-210, AXELERA-183" and one filled in one per row agree.
+			for _, part := range strings.Fields(strings.ReplaceAll(line, ",", " ")) {
+				id := strings.ToUpper(part)
+
+				if !issueIDRegex.MatchString(id) || seen[id] {
+					continue
+				}
+
+				seen[id] = true
+				ids = append(ids, id)
+			}
+		}
+
+		sort.Strings(ids)
+		userStandup.Standup[sectionTitle] = &ids
+	}
 }
 
 // SectionBody renders one section of a member's standup as the reports show it.
@@ -467,6 +508,12 @@ func SaveUserStandup(userStandup *UserStandup) error {
 	if standupConfig == nil {
 		return errors.New("standup not configured for channel: " + userStandup.ChannelID)
 	}
+
+	// Whatever wrote this - the modal or /standup update - issue sections are
+	// stored in one shape, so everything that reads them back does not have to
+	// guess.
+	normalizeIssueSections(standupConfig, userStandup)
+
 	key := otime.Now(standupConfig.Timezone).GetDateString() + "_" + userStandup.ChannelID + userStandup.UserID
 	bytes, err := json.Marshal(userStandup)
 	if err != nil {

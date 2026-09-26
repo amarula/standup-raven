@@ -181,3 +181,83 @@ func TestSectionBody_LeavesTheInputAlone(t *testing.T) {
 	assert.Equal(t, "```\nE: timeout\n```", SectionBody(sectionType, lines))
 	assert.Equal(t, []string{"```", "E: timeout"}, lines, "the stored standup is not modified by rendering it")
 }
+
+func Test_normalizeIssueSections(t *testing.T) {
+	tests := []struct {
+		name     string
+		lines    []string
+		expected []string
+	}{
+		{
+			name:     "one per row",
+			lines:    []string{"AXELERA-210", "AXELERA-183"},
+			expected: []string{"AXELERA-183", "AXELERA-210"},
+		},
+		{
+			name:     "comma separated in a single row",
+			lines:    []string{"AXELERA-210, AXELERA-183"},
+			expected: []string{"AXELERA-183", "AXELERA-210"},
+		},
+		{
+			name:     "lowercase is uppercased",
+			lines:    []string{"axelera-210"},
+			expected: []string{"AXELERA-210"},
+		},
+		{
+			name:     "the same issue twice is one entry",
+			lines:    []string{"AXELERA-210", "axelera-210"},
+			expected: []string{"AXELERA-210"},
+		},
+		{
+			name:     "anything that is not an ID is dropped",
+			lines:    []string{"AXELERA-210", "not an id", "TODO", "AXELERA-", "210"},
+			expected: []string{"AXELERA-210"},
+		},
+		{
+			name:     "surrounding space is ignored",
+			lines:    []string{"  AXELERA-210  "},
+			expected: []string{"AXELERA-210"},
+		},
+		{
+			name:     "a section left with nothing is empty",
+			lines:    []string{"nonsense"},
+			expected: []string{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			standupConfig := sectionTypesConfig()
+			standupConfig.SectionTypes = map[string]string{"Tickets": SectionTypeIssues}
+
+			lines := test.lines
+			userStandup := &UserStandup{
+				UserID:    "user_id_1",
+				ChannelID: "channel_id",
+				Standup:   map[string]*[]string{"Tickets": &lines},
+			}
+
+			normalizeIssueSections(&standupConfig, userStandup)
+
+			assert.Equal(t, test.expected, *userStandup.Standup["Tickets"])
+		})
+	}
+}
+
+// A section is only treated this way because it says it holds issue IDs, and a
+// section that says it holds lines keeps them exactly as they were typed.
+func Test_normalizeIssueSections_LeavesOtherSectionsAlone(t *testing.T) {
+	standupConfig := sectionTypesConfig()
+	standupConfig.SectionTypes = map[string]string{"Tickets": SectionTypeIssues}
+
+	today := []string{"axelera-210, still writing this up", ""}
+	userStandup := &UserStandup{
+		UserID:    "user_id_1",
+		ChannelID: "channel_id",
+		Standup:   map[string]*[]string{"Today": &today},
+	}
+
+	normalizeIssueSections(&standupConfig, userStandup)
+
+	assert.Equal(t, []string{"axelera-210, still writing this up", ""}, *userStandup.Standup["Today"])
+}
