@@ -262,3 +262,57 @@ func Test_executeCommandUpdate(t *testing.T) {
 		assert.Contains(t, response.Text, "Couldn't save")
 	})
 }
+
+// Asked with no section at all, the command says which there are: that is the
+// question someone typing it for the first time is trying to answer.
+func Test_validateCommandUpdate_WithNoSectionSaysWhichThereAre(t *testing.T) {
+	defer TearDown()
+	mockCommandAPI()
+	patchUpdateStandupConfig()
+
+	context := newUpdateContext(testChannelID)
+
+	response, appErr := validateCommandUpdate([]string{}, context)
+
+	assert.Nil(t, appErr)
+	if !assert.NotNil(t, response) {
+		return
+	}
+
+	assert.Contains(t, response.Text, "Yesterday, Today, In progress, in")
+	assert.Contains(t, response.Text, "`/standup update \"Yesterday\" reviewing the login fix`")
+}
+
+// One argument and no text is a different mistake and gets a different answer.
+func Test_validateCommandUpdate_WithASectionAndNothingToAdd(t *testing.T) {
+	defer TearDown()
+	mockCommandAPI()
+	patchUpdateStandupConfig()
+
+	context := newUpdateContext(testChannelID)
+
+	response, appErr := validateCommandUpdate([]string{"Today"}, context)
+
+	assert.Nil(t, appErr)
+	if assert.NotNil(t, response) {
+		assert.Contains(t, response.Text, "Nothing to add to Today")
+	}
+}
+
+// The section argument offers the channel's own sections while the command is
+// being typed, which is the whole point: nobody should have to guess a name.
+func Test_commandUpdate_SuggestsTheChannelsSections(t *testing.T) {
+	update := commandUpdate()
+
+	if !assert.NotEmpty(t, update.AutocompleteData.Arguments) {
+		return
+	}
+
+	sectionArgument := update.AutocompleteData.Arguments[0]
+	assert.Equal(t, model.AutocompleteArgTypeDynamicList, sectionArgument.Type)
+
+	dynamicList, ok := sectionArgument.Data.(*model.AutocompleteDynamicListArg)
+	if assert.True(t, ok, "the section argument has to be a dynamic list") {
+		assert.Equal(t, config.URLPluginBase+"/sections", dynamicList.FetchURL)
+	}
+}

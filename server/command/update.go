@@ -6,6 +6,7 @@ import (
 
 	"github.com/mattermost/mattermost/server/public/model"
 
+	"github.com/standup-raven/standup-raven/server/config"
 	"github.com/standup-raven/standup-raven/server/otime"
 	"github.com/standup-raven/standup-raven/server/standup"
 	"github.com/standup-raven/standup-raven/server/util"
@@ -28,10 +29,14 @@ func commandUpdate() *Config {
 			RoleID:   model.SystemUserRoleId,
 			Arguments: []*model.AutocompleteArg{
 				{
-					HelpText: "Section to add the line to. Quote it if the name contains spaces.",
-					Type:     model.AutocompleteArgTypeText,
+					HelpText: "Section to add the line to.",
+					Type:     model.AutocompleteArgTypeDynamicList,
 					Required: true,
-					Data:     &model.AutocompleteTextArg{Hint: "section name"},
+
+					// Mattermost's server fetches this while the command is
+					// being typed, passing the channel, so what is offered is
+					// this channel's own sections rather than a list to remember.
+					Data: &model.AutocompleteDynamicListArg{FetchURL: config.URLPluginBase + "/sections"},
 				},
 				{
 					HelpText: "What you want to record",
@@ -58,8 +63,27 @@ func validateCommandUpdate(args []string, context Context) (*model.CommandRespon
 		return util.SendEphemeralText("Standup is not configured for this channel.")
 	}
 
+	example := "today"
+	if len(standupConfig.Sections) > 0 {
+		example = standupConfig.Sections[0]
+	}
+
+	if len(args) == 0 {
+		// No section named: say which there are, since that is what someone
+		// typing this for the first time is trying to find out. The command's
+		// own argument list suggests these too, where the client shows it.
+		return util.SendEphemeralText(fmt.Sprintf(
+			"Which section? This channel's sections are: %s\n\nFor example: `/standup update \"%s\" reviewing the login fix`",
+			strings.Join(standupConfig.Sections, ", "),
+			example,
+		))
+	}
+
 	if len(args) < 2 {
-		return util.SendEphemeralText("Usage: `/standup update <section> <what you want to record>`")
+		return util.SendEphemeralText(fmt.Sprintf(
+			"Nothing to add to %s. Usage: `/standup update <section> <what you want to record>`",
+			args[0],
+		))
 	}
 
 	section, remaining, matched := matchSection(standupConfig.Sections, args)

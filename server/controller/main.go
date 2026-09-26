@@ -28,6 +28,7 @@ var Endpoints = map[string]*Endpoint{
 	getEndpointKey(getActiveStandupChannels): getActiveStandupChannels,
 	getEndpointKey(getPluginConfig):          getPluginConfig,
 	getEndpointKey(openStandup):              openStandup,
+	getEndpointKey(getSections):              getSections,
 }
 
 func getEndpointKey(endpoint *Endpoint) string {

@@ -45,3 +45,8 @@ func upgradeDatabaseToVersion4_2_3(fromVersion string) error {
 func upgradeDatabaseToVersion4_3_0(fromVersion string) error {
 	return updateSchemaVersion(version4_3_0)
 }
+
+// 4.4.0 suggests a channel's sections while /standup update is being typed.
+func upgradeDatabaseToVersion4_4_0(fromVersion string) error {
+	return updateSchemaVersion(version4_4_0)
+}

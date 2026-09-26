@@ -75,9 +75,11 @@ Just follow these steps and you'll be ready in no time.
 
         /standup update <section> <what you want to record>
 
-    For example, `/standup update today reviewing the login fix`. Section names are matched against the
-    sections configured for the channel, ignoring case, and a name that contains spaces can be quoted:
-    `/standup update "in progress" waiting on the API`. The command replies with the section as it now reads.
+    For example, `/standup update today reviewing the login fix`. As you type, the channel's own sections are
+    offered as suggestions, so there is nothing to memorise; running the command with no section at all lists
+    them. Section names are matched against the sections configured for the channel, ignoring case, and a name
+    that contains spaces can be quoted: `/standup update "in progress" waiting on the API`. The command replies
+    with the section as it now reads.
 
 1. **Looking back over the week** - The following slash command shows the week's standups grouped by
    the issues they name, so the work can be copied into a tracker's work log -
