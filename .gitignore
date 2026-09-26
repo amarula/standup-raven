@@ -1,7 +1,7 @@
 dist
 webapp/dist
 webapp/node_modules
-webapp/test/bundle.cjs
+webapp/test/bundle*.cjs
 server/vendor/
 .history/
 .webinstall

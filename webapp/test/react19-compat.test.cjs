@@ -59,8 +59,10 @@ function setInputValue(dom, input, value) {
     input.dispatchEvent(new dom.window.Event('change', {bubbles: true}));
 }
 
+const REACT_MAJOR = process.env.REACT_MAJOR === '18' ? '18' : '19';
+
 async function buildBundle() {
-    const outfile = path.join(__dirname, 'bundle.cjs');
+    const outfile = path.join(__dirname, `bundle-react${REACT_MAJOR}.cjs`);
     await esbuild.build({
         entryPoints: [path.join(__dirname, 'entry.jsx')],
         bundle: true,
@@ -68,12 +70,13 @@ async function buildBundle() {
         format: 'cjs',
         outfile,
         loader: {'.css': 'empty', '.svg': 'text', '.png': 'empty'},
-        // react19/react-dom19 are npm aliases in package.json: the host's React
-        // major, installed next to the React the bundle is declared against.
+        // react18/react19 and react-dom18/react-dom19 are npm aliases in
+        // package.json: one installation per React major the host might be
+        // running, so the same sources can be mounted on both.
         alias: {
-            react: 'react19',
-            'react-dom': 'react-dom19',
-            'react-dom/client': 'react-dom19/client',
+            react: `react${REACT_MAJOR}`,
+            'react-dom': `react-dom${REACT_MAJOR}`,
+            'react-dom/client': `react-dom${REACT_MAJOR}/client`,
             superagent: path.join(__dirname, 'host-superagent.cjs'),
         },
         jsx: 'transform',
@@ -89,11 +92,16 @@ async function main() {
     const {act} = React;
     const {createRoot} = ReactDOMClient;
 
-    console.log(`\nReact ${React.version} | react-dom ${require('react-dom19/package.json').version}`);
+    console.log(`\nReact ${React.version} | react-dom ${require(`react-dom${REACT_MAJOR}/package.json`).version}`);
 
-    console.log('\n[1] The API the old date pickers called');
-    check('ReactDOM.findDOMNode is gone in React 19',
-        typeof require('react-dom19').findDOMNode === 'undefined');
+    console.log('\n[1] The APIs React 19 removed');
+    {
+        const findDOMNode = typeof require(`react-dom${REACT_MAJOR}`).findDOMNode;
+        check(REACT_MAJOR === '19' ?
+            'ReactDOM.findDOMNode is gone in React 19' :
+            'ReactDOM.findDOMNode is still here in React 18, and nothing below uses it',
+        REACT_MAJOR === '19' ? findDOMNode === 'undefined' : findDOMNode === 'function');
+    }
 
     console.log('\n[2] RRule start date field (as used by the config modal)');
     {
@@ -821,6 +829,44 @@ async function main() {
         }
     }
 
+    console.log('\n[8] Nothing left that React 19 removed');
+    {
+        const fs = require('fs');
+        const walk = (dir) => fs.readdirSync(dir, {withFileTypes: true}).flatMap((entry) => {
+            const full = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                return walk(full);
+            }
+            return /\.(js|jsx|css)$/.test(entry.name) ? [full] : [];
+        });
+
+        // Patterns that would either break on React 19, drag a second copy of
+        // React into the bundle, or reach over the host's own styling.
+        const forbidden = [
+            ['findDOMNode', 'removed in React 19: hold a ref instead'],
+            ['ReactDOM.render', 'removed in React 19: the host owns the root'],
+            ['createReactClass', 'not supported by React 19'],
+            ['componentWillMount', 'a lifecycle deprecated since React 16'],
+            ['componentWillReceiveProps', 'a lifecycle deprecated since React 16'],
+            ['contextTypes', 'legacy context is removed in React 19'],
+            ["react-dom/client", 'only react-dom is an external, so this bundles a second React'],
+            ['ReactBootstrap', 'the host global this no longer builds on'],
+            ['!important', 'a stylesheet reaching over the host'],
+        ];
+
+        const offenders = [];
+        for (const file of walk(path.join(__dirname, '../src'))) {
+            const text = fs.readFileSync(file, 'utf8');
+            for (const [needle, why] of forbidden) {
+                if (text.indexOf(needle) >= 0) {
+                    offenders.push(`${path.relative(path.join(__dirname, '..'), file)}: ${needle} (${why})`);
+                }
+            }
+        }
+
+        check('the plugin sources are free of all of it', offenders.length === 0, offenders.join('; '));
+    }
+
     console.log('');
 
     // Exit explicitly. React's scheduler keeps a MessageChannel open, and the
@@ -830,7 +876,7 @@ async function main() {
         console.log(`FAILED: ${failures.length} check(s): ${failures.join(', ')}`);
         process.exit(1);
     }
-    console.log('all checks passed under React 19');
+    console.log(`all checks passed under React ${REACT_MAJOR}`);
     process.exit(0);
 }
 

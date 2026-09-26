@@ -65,7 +65,6 @@ module.exports = (env, argv) => {
             'react-dom': 'ReactDOM',
             'react-redux': 'ReactRedux',
             'prop-types': 'PropTypes',
-            'react-bootstrap': 'ReactBootstrap',
         },
         output: {
             path: path.join(__dirname, '/dist'),
