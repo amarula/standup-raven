@@ -19,6 +19,11 @@ const (
 	URLPluginBase = "/plugins/" + PluginName
 	URLStaticBase = URLPluginBase
 
+	// PathOpenStandup is the endpoint the standup prompt's button posts to. It is
+	// declared here because both the controller that serves it and the
+	// notification that links to it need the same value.
+	PathOpenStandup = "/open-standup"
+
 	HeaderMattermostUserID = "Mattermost-User-Id"
 
 	ReportFormatUserAggregated = "user_aggregated"

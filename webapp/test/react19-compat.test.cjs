@@ -177,6 +177,36 @@ async function main() {
         act(() => root.unmount());
     }
 
+    console.log('\n[4] The modal opens for the channel a prompt asked for');
+    {
+        const {standupModalChannelId, Selectors, Constants} = bundle;
+        const pluginStateKey = `plugins-${Constants.PLUGIN_NAME}`;
+
+        check('opening from a prompt records its channel',
+            standupModalChannelId('', {type: Constants.ACTIONS.OPEN_STANDUP_MODAL, channelId: 'channel_from_prompt'}) === 'channel_from_prompt');
+        check('opening without a channel leaves no override',
+            standupModalChannelId('stale_channel', {type: Constants.ACTIONS.OPEN_STANDUP_MODAL}) === '');
+        check('closing forgets the channel',
+            standupModalChannelId('channel_from_prompt', {type: Constants.ACTIONS.CLOSE_STANDUP_MODAL}) === '');
+
+        const prompted = {
+            [pluginStateKey]: {standupModalChannelId: 'channel_from_prompt'},
+            entities: {channels: {currentChannelId: 'channel_being_read'}},
+        };
+        check('a prompt wins over the channel being viewed',
+            Selectors.standupModalChannel(prompted) === 'channel_from_prompt');
+
+        const browsing = {
+            [pluginStateKey]: {},
+            entities: {channels: {currentChannelId: 'channel_being_read'}},
+        };
+        check('without a prompt it follows the channel being viewed',
+            Selectors.standupModalChannel(browsing) === 'channel_being_read');
+
+        check('with neither it is empty rather than undefined',
+            Selectors.standupModalChannel({}) === '');
+    }
+
     console.log('');
     if (failures.length) {
         console.log(`FAILED: ${failures.length} check(s): ${failures.join(', ')}`);

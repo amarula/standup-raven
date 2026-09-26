@@ -9,7 +9,7 @@ import util from '../../utils';
 
 const mapStateToProps = (state) => ({
     currentUserId: state.entities.users.currentUserId,
-    channelID: state.entities.channels.currentChannelId,
+    channelID: Selectors.standupModalChannel(state),
     visible: Selectors.isStandupModalVisible(state),
     siteURL: util.trimTrailingSlash(util.getValueSafely(state, 'entities.general.config.SiteURL', '')),
     isGuest: util.isGuestUser(state, state.entities.users.currentUserId),

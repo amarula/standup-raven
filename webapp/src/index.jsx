@@ -36,8 +36,10 @@ class StandupRavenPlugin {
         );
         registry.registerWebSocketEventHandler(
             `custom_${Constants.PLUGIN_NAME}_open_standup_modal`,
-            () => {
-                store.dispatch(Actions.openStandupModal());
+            (event) => {
+                // The prompt sends the channel it belongs to, which is not
+                // necessarily the channel the user is looking at.
+                store.dispatch(Actions.openStandupModal(utils.getValueSafely(event, 'data.channel_id')));
             },
         );
 

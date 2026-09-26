@@ -409,6 +409,25 @@ func sendWindowOpenNotification(channelIDs []string) {
 			Message:   "Please start filling your standup!",
 		}
 
+		// The button hands the click back to the plugin, which asks the clicking
+		// user's client to open the modal for this channel. The URL is relative
+		// to the plugin, which Mattermost resolves against the server it runs on.
+		post.AddProp("attachments", []*model.MessageAttachment{
+			{
+				Actions: []*model.PostAction{
+					{
+						Id:   "open_standup_modal",
+						Name: "Fill standup",
+						Type: model.PostActionTypeButton,
+						Integration: &model.PostActionIntegration{
+							URL:     config.URLPluginBase + config.PathOpenStandup,
+							Context: map[string]any{"channel_id": channelID},
+						},
+					},
+				},
+			},
+		})
+
 		post, appErr := config.Mattermost.CreatePost(post)
 		if appErr != nil {
 			logger.Error("Error sending window open notification for channel", appErr, map[string]interface{}{"channelID": channelID})
