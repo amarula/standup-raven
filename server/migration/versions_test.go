@@ -44,3 +44,18 @@ func Test_CurrentPluginVersionIsInTheUpgradeTable(t *testing.T) {
 	assert.True(t, isUpgradeCompatible(version1_5_0, parsed.Version),
 		"an installation on %s cannot upgrade to %s", version1_5_0, parsed.Version)
 }
+
+// The runner decides what to migrate by comparing versions, so a comparison
+// that reads the parts of a version as text rather than as numbers would read
+// 3.10.0 as older than 3.9.0 and run migrations that had already been applied.
+func Test_IsNewerVersion(t *testing.T) {
+	assert.True(t, isNewerVersion(version3_2_2, version3_2_1))
+	assert.False(t, isNewerVersion(version3_2_1, version3_2_2))
+	assert.False(t, isNewerVersion(version3_2_0, version3_2_0))
+	assert.True(t, isNewerVersion(version4_2_0, version3_3_2))
+	assert.True(t, isNewerVersion("3.10.0", "3.9.0"))
+
+	// A fresh installation has no version stored, and every migration is newer
+	// than that.
+	assert.True(t, isNewerVersion(version1_5_0, versionNone))
+}

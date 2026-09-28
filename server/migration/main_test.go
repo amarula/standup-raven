@@ -17,6 +17,7 @@ import (
 	"github.com/standup-raven/standup-raven/server/logger"
 	"github.com/standup-raven/standup-raven/server/otime"
 	"github.com/standup-raven/standup-raven/server/standup"
+	"github.com/standup-raven/standup-raven/server/util"
 )
 
 func baseMock() *plugintest.API {
@@ -41,6 +42,96 @@ func baseMock() *plugintest.API {
 
 func TearDown() {
 	monkey.UnpatchAll()
+}
+
+// schemaVersionStore makes KVGet and KVSet work against a map instead of a
+// fixed value, so a test can watch the schema version the runner writes and see
+// what it leaves behind.
+func schemaVersionStore(mockAPI *plugintest.API, initial string) (string, map[string][]byte) {
+	key := util.GetKeyHash(databaseSchemaVersion)
+	values := make(map[string][]byte)
+	if initial != "" {
+		encoded, _ := json.Marshal(initial)
+		values[key] = encoded
+	}
+
+	mockAPI.On("KVGet", mock.Anything).Return(
+		func(k string) []byte { return values[k] },
+		func(k string) *model.AppError { return nil },
+	)
+	mockAPI.On("KVSet", mock.Anything, mock.Anything).Return(
+		func(k string, value []byte) *model.AppError {
+			values[k] = value
+			return nil
+		},
+	)
+
+	return key, values
+}
+
+// A start whose stored version differs from the build's walks the whole
+// migration list. A migration that only bumps the version would then stamp its
+// own, older version on the way past, walking the key back to 2.0.0 and arming
+// the guard the next data migration reads: upgradeDatabaseToVersion3_0_0 would
+// run again over data that is already at 4.1.1, rewriting every channel's
+// recurrence to the default work week and archiving the channels whose
+// configuration it cannot validate.
+func TestDatabaseMigration_DoesNotRerunAnAppliedDataMigration(t *testing.T) {
+	defer TearDown()
+	mockAPI := baseMock()
+	key, values := schemaVersionStore(mockAPI, version4_1_1)
+
+	// The channel scan is the first thing upgradeDatabaseToVersion3_0_0 does, and
+	// failing it fails the run, so the migration cannot go on from here to read
+	// the configuration and rewrite every channel.
+	channelsScanned := false
+	monkey.Patch(standup.GetStandupChannels, func() (map[string]string, error) {
+		channelsScanned = true
+		return nil, errors.New("the 3.0.0 data migration scanned the channels again")
+	})
+
+	conf := config.GetConfig()
+	conf.PluginVersion = version4_2_0
+	config.SetConfig(conf)
+
+	assert.Nil(t, DatabaseMigration())
+	assert.False(t, channelsScanned, "the 3.0.0 data migration ran over data already at 4.1.1")
+
+	var stored string
+	assert.Nil(t, json.Unmarshal(values[key], &stored))
+	assert.Equal(t, version4_2_0, stored)
+}
+
+// The other half of skipping applied migrations: an installation behind the
+// build still goes through every migration it has not been through. 1.5.0 is
+// the oldest version the 4.2.0 entry lets in, so the channel migration is the
+// first one it has to run.
+func TestDatabaseMigration_RunsTheMigrationsAnInstallationIsBehindOn(t *testing.T) {
+	defer TearDown()
+	mockAPI := baseMock()
+	key, values := schemaVersionStore(mockAPI, version1_5_0)
+
+	monkey.Patch(generateRRuleStringByWorkWeek, func() (string, error) {
+		return "FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,TU,WE,TH,FR", nil
+	})
+	mockAPI.On("LogInfo", mock.Anything).Return()
+
+	channelsScanned := false
+	monkey.Patch(standup.GetStandupChannels, func() (map[string]string, error) {
+		channelsScanned = true
+		return map[string]string{}, nil
+	})
+
+	conf := config.GetConfig()
+	conf.PluginVersion = version4_2_0
+	config.SetConfig(conf)
+
+	assert.Nil(t, DatabaseMigration())
+	assert.True(t, channelsScanned, "the 3.0.0 data migration did not run for an installation at 1.5.0")
+
+	var stored string
+	assert.Nil(t, json.Unmarshal(values[key], &stored))
+	assert.Equal(t, version4_2_0, stored)
 }
 
 func TestDatebaseMigration_getCurrentSchemaVersion_Error(t *testing.T) {

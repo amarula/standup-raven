@@ -4,6 +4,7 @@ go 1.26.7
 
 require (
 	bou.ke/monkey v1.0.2
+	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/dustin/go-humanize v1.0.0
 	github.com/getsentry/sentry-go v0.49.0
 	github.com/mattermost/mattermost/server/public v0.4.4
@@ -14,7 +15,6 @@ require (
 )
 
 require (
-	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/beevik/etree v1.7.1 // indirect
 	github.com/dyatlov/go-opengraph/opengraph v0.0.0-20220524092352-606d7b1e5f8a // indirect
 	github.com/fatih/color v1.19.0 // indirect
