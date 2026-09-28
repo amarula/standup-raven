@@ -134,6 +134,28 @@ func TestDatabaseMigration_RunsTheMigrationsAnInstallationIsBehindOn(t *testing.
 	assert.Equal(t, version4_2_0, stored)
 }
 
+// The versions a build can be installed over are all older than data left by a
+// newer build, so naming them would send an admin in circles: each of those
+// builds refuses in the same way. The message has to name the version that can
+// read the data instead.
+func TestDatabaseMigration_DataFromANewerBuild(t *testing.T) {
+	defer TearDown()
+	mockAPI := baseMock()
+	schemaVersionStore(mockAPI, version4_2_0)
+
+	conf := config.GetConfig()
+	conf.PluginVersion = version3_2_2
+	config.SetConfig(conf)
+
+	err := DatabaseMigration()
+
+	if assert.NotNil(t, err) {
+		assert.Contains(t, err.Error(), "newer than this build")
+		assert.NotContains(t, err.Error(), version3_2_1,
+			"the message points at versions older than the data")
+	}
+}
+
 func TestDatebaseMigration_getCurrentSchemaVersion_Error(t *testing.T) {
 	defer TearDown()
 	baseMock()

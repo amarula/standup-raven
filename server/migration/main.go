@@ -129,7 +129,18 @@ func DatabaseMigration() error {
 			pluginVersion,
 		)
 
-		if canUpgradeFrom := upgradeCompatibility[pluginVersion]; len(canUpgradeFrom) > 0 {
+		if isNewerVersion(schemaVersion, pluginVersion) {
+			// The data was migrated by a build newer than this one, so every
+			// version this build can be installed over is older than the data
+			// and naming them would send the admin in circles: each of them
+			// refuses in this same way. Only a build at least as new as the data
+			// can start.
+			msg += fmt.Sprintf(
+				" The data was last upgraded by version %s, which is newer than this build. Install version %s or newer.",
+				schemaVersion,
+				schemaVersion,
+			)
+		} else if canUpgradeFrom := upgradeCompatibility[pluginVersion]; len(canUpgradeFrom) > 0 {
 			msg += fmt.Sprintf(" Please upgrade first to one of versions %s", strings.Join(canUpgradeFrom, ", "))
 		} else {
 			// An empty list means this build is not in the upgrade table at all,
